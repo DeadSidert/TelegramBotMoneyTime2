@@ -2,18 +2,27 @@ package com.nikita.botter.service;
 
 
 import com.nikita.botter.model.User;
+import org.springframework.beans.factory.annotation.Value;
+
+import java.util.HashMap;
 
 public class UserService {
 
+    @Value("${bot.botUrl}")
+    private String botUrl;
+
+    private final HashMap<Integer, User> userHashMap = new HashMap<>();
+
     public boolean userExist(int id){
-        return false;
+        return userHashMap.containsKey(id);
     }
 
     public User findById(int id){
-        return null;
+        return userHashMap.get(id);
     }
 
     public User update(User user){
-        return null;
+        user.setReferUrl(botUrl + "?start=" + user.getId());
+        return userHashMap.put(user.getId(), user);
     }
 }

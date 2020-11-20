@@ -10,4 +10,5 @@ public class Channel {
     String id;
     int userId;
     String url;
+    boolean start;
 }

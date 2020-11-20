@@ -1,5 +1,5 @@
 bot:
-  admin:
+  adminId:
   token:
   name:
   botUrl: https://t.me/Monetary24bot

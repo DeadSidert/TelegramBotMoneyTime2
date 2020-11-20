@@ -2,14 +2,10 @@ package com.nikita.botter.model;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.springframework.beans.factory.annotation.Value;
 
 @Getter
 @Setter
 public class User {
-
-    @Value("${bot.botUrl}")
-    private String botUrl;
 
     int id;
     String refUrl;
@@ -22,7 +18,7 @@ public class User {
 
     public User(int id) {
         this.id = id;
-        this.refUrl = botUrl + "?start=" + id;
+        this.refUrl = "";
         this.position = "back";
         this.auth = false;
         this.countRefs = 0;
