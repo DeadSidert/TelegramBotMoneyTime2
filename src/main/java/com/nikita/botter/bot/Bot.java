@@ -447,17 +447,9 @@ public class Bot extends TelegramLongPollingBot {
 
     // проверка существования юзера
     public User existUser(int userId){
-        if (userService.userExist(userId)){
             User user = userService.findById(userId);
-            log.info("Юзера достали из бд id: {}", userId);
+            log.info("Юзера создали или достали id: {}", userId);
             return user;
-        }
-        else {
-            User user = new User(userId);
-            userService.update(user);
-            log.info("Юзера создали id: {}", userId);
-            return user;
-        }
     }
 
     public SendMessage cancel(User user){
