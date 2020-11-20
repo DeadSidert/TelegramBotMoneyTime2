@@ -12,9 +12,12 @@ public class User {
     String position;
     boolean auth;
     int countRefs;
-    // тот, кто привел
+    // тот, кто привел юзера
     String referUrl;
     int money;
+    String qiwi;
+    private boolean bonus;
+    private int moneyFromPartners;
 
     public User(int id) {
         this.id = id;
@@ -24,5 +27,8 @@ public class User {
         this.countRefs = 0;
         this.referUrl = "";
         this.money = 0;
+        this.qiwi = "";
+        this.bonus = false;
+        this.moneyFromPartners = 0;
     }
 }
