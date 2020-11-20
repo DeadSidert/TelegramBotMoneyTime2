@@ -20,9 +20,9 @@ spring:
   datasource:
     #  Note that the hostname, port and database name on url property and username and password properties will be ignored
     #  and it will be used default container values
-    url: jdbc:postgresql://localhost:5437/postgres?user=postgres&password=postgres&currentSchema=public
+    url: jdbc:postgresql://localhost:5432/nikita?user=nikita&password=91823God&currentSchema=public
     driver-class-name: org.postgresql.Driver
-    username: postgres
-    password: postgres
+    username: nikita
+    password: 91823God
     hikari:
       schema: public

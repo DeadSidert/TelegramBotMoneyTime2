@@ -188,7 +188,7 @@ public class Bot extends TelegramLongPollingBot {
             log.info("Отправили сообщение юзеру {}", sendMessage.getChatId());
             execute(sendMessage);
         } catch (TelegramApiException e) {
-            e.printStackTrace();
+            log.error(e.getMessage());
         }
     }
 
