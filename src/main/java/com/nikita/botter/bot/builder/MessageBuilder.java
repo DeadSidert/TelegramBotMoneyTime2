@@ -56,23 +56,29 @@ public final class MessageBuilder {
         InlineKeyboardButton inlineKeyboardButton = new InlineKeyboardButton();
         inlineKeyboardButton.setText(text);
         inlineKeyboardButton.setCallbackData(callbackData);
-        row.add(new InlineKeyboardButton().setText(text).setCallbackData(callbackData));
+        row.add(inlineKeyboardButton);
         return this;
     }
     public MessageBuilder buttonWithUrl(String text, String url) {
-        row.add(new InlineKeyboardButton().setText(text).setUrl(url));
+        InlineKeyboardButton inlineKeyboardButton = new InlineKeyboardButton();
+        inlineKeyboardButton.setText(text);
+        inlineKeyboardButton.setUrl(url);
+        row.add(inlineKeyboardButton);
         return this;
     }
 
     public SendMessage build() {
-        SendMessage sendMessage = new SendMessage()
-                .setChatId(chatId)
-                .setText(sb.toString())
-                .enableMarkdown(true);
+        SendMessage sendMessage = new SendMessage();
+                sendMessage.setChatId(chatId);
+                sendMessage.setText(sb.toString());
+                sendMessage.enableMarkdown(true);
         addRowToKeyboard();
 
         if (!keyboard.isEmpty()) {
-            sendMessage.setReplyMarkup(new InlineKeyboardMarkup().setKeyboard(keyboard));
+            InlineKeyboardButton inlineKeyboardButton = new InlineKeyboardButton();
+            InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+            markup.setKeyboard(keyboard);
+            sendMessage.setReplyMarkup(markup);
         }
 
         return sendMessage;

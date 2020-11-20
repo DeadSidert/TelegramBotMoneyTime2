@@ -1,2 +1,8 @@
+bot:
+  admin:
+  token:
+  name:
+  botUrl: https://t.me/Monetary24bot
+
 server:
   port: 8082
