@@ -18,5 +18,11 @@ spring:
     open-in-view: false
     hibernate.ddl-auto: none
   datasource:
-    url: jdbc:tc:postgresql:10.9://localhost/test
-    username: test
+    #  Note that the hostname, port and database name on url property and username and password properties will be ignored
+    #  and it will be used default container values
+    url: jdbc:postgresql://localhost:5437/postgres?user=postgres&password=postgres&currentSchema=public
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: postgres
+    hikari:
+      schema: public
