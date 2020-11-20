@@ -59,7 +59,6 @@ public class Bot extends TelegramLongPollingBot {
         SendMessage sendMessage;
         int userId = 0;
         String userIdString;
-        String arguments;
 
         // если приходит текст
         if (isMessageWithText(update)){
@@ -101,10 +100,10 @@ public class Bot extends TelegramLongPollingBot {
               if (!user.isAuth()){
                   executeWithExceptionCheck(checkUserInStartChannels(user));
               }
-
               else {
                   createUserMenu();
               }
+
               MessageBuilder messageBuilder = MessageBuilder.create(user);
               messageBuilder.line("Добро пожаловать");
               sendMessage = messageBuilder.build();
@@ -113,12 +112,14 @@ public class Bot extends TelegramLongPollingBot {
               executeWithExceptionCheck(sendMessage);
            }
            // войти в админ меню
-           else if ("/admin_menu".equalsIgnoreCase(command)){
+           else if ("админМеню".equalsIgnoreCase(command)){
                if (userIdString.equalsIgnoreCase(adminId)){
                    createAdminMenu();
-                   MessageBuilder messageBuilder = MessageBuilder.create(adminId);
+                   MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+                   messageBuilder.line("Вход в админ панель");
                    sendMessage = messageBuilder.build();
                    sendMessage.setReplyMarkup(keyboardMarkup);
+                   log.info("Вход в админ панель юзером {}", userIdString);
                    executeWithExceptionCheck(sendMessage);
                }
                else {
@@ -139,10 +140,35 @@ public class Bot extends TelegramLongPollingBot {
                    executeWithExceptionCheck(messageBuilder.build());
                }
            }
+           else if ("Выйти".equalsIgnoreCase(command)){
+               if (userIdString.equalsIgnoreCase(adminId)){
+                   sendMessage = MessageBuilder.create(userIdString).line("Вы вышли в главное меню").build();
+                   createUserMenu();
+                   sendMessage.setReplyMarkup(keyboardMarkup);
+                   executeWithExceptionCheck(sendMessage);
+               }
+               else {
+                   MessageBuilder messageBuilder = MessageBuilder.create(user);
+                   messageBuilder.line("Вы не админ");
+                   executeWithExceptionCheck(messageBuilder.build());
+               }
+           }
            // удалить канал
            else if ("Удалить канал".equalsIgnoreCase(command)){
                if (userIdString.equalsIgnoreCase(adminId)){
                    sendMessage = deleteChannel(update);
+                   executeWithExceptionCheck(sendMessage);
+               }
+               else {
+                   MessageBuilder messageBuilder = MessageBuilder.create(user);
+                   messageBuilder.line("Вы не админ");
+                   executeWithExceptionCheck(messageBuilder.build());
+               }
+           }
+           // список каналов
+           else if ("Список каналов".equalsIgnoreCase(command)){
+               if (userIdString.equalsIgnoreCase(adminId)){
+                   sendMessage = allChannels(update);
                    executeWithExceptionCheck(sendMessage);
                }
                else {
@@ -185,10 +211,10 @@ public class Bot extends TelegramLongPollingBot {
 
     private void executeWithExceptionCheck(SendMessage sendMessage){
         try {
-            log.info("Отправили сообщение юзеру {}", sendMessage.getChatId());
+            log.info("Юзер {} отправил смс {}", sendMessage.getChatId(), sendMessage.getText());
             execute(sendMessage);
         } catch (TelegramApiException e) {
-            log.error(e.getMessage());
+            e.getStackTrace();
         }
     }
 
@@ -402,13 +428,18 @@ public class Bot extends TelegramLongPollingBot {
 
         KeyboardRow keyboardRow1 = new KeyboardRow();
         keyboardRow1.add("Список пользователей");
+        keyboardRow1.add("Список каналов");
 
         KeyboardRow keyboardRow2 = new KeyboardRow();
         keyboardRow2.add("Проверить запросы на выплаты");
 
+        KeyboardRow keyboardRow3 = new KeyboardRow();
+        keyboardRow3.add("Выйти");
+
         rowList.add(keyboardRow);
         rowList.add(keyboardRow1);
         rowList.add(keyboardRow2);
+        rowList.add(keyboardRow3);
 
         keyboardMarkup.setKeyboard(rowList);
         log.info("Создали adminMenu");
@@ -434,5 +465,9 @@ public class Bot extends TelegramLongPollingBot {
         user.setPosition("back");
         userService.update(user);
         return messageBuilder.line("Операция отменена").build();
+    }
+
+    public SendMessage allChannels(Update update){
+        return new SendMessage();
     }
 }

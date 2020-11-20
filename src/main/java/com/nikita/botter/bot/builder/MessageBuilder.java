@@ -51,7 +51,6 @@ public final class MessageBuilder {
         return this;
     }
 
-    // cannot resolve method setCallbackData(java.lang.String)
     public MessageBuilder button(String text, String callbackData) {
         InlineKeyboardButton inlineKeyboardButton = new InlineKeyboardButton();
         inlineKeyboardButton.setText(text);
@@ -68,7 +67,7 @@ public final class MessageBuilder {
     }
 
     public SendMessage build() {
-        SendMessage sendMessage = new SendMessage();
+         SendMessage sendMessage = new SendMessage();
                 sendMessage.setChatId(chatId);
                 sendMessage.setText(sb.toString());
                 sendMessage.enableMarkdown(true);

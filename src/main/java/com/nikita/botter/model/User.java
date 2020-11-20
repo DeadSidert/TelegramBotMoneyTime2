@@ -1,12 +1,19 @@
 package com.nikita.botter.model;
 
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+
+import javax.persistence.Entity;
+import javax.persistence.Id;
 
 @Getter
 @Setter
+@Entity
+@RequiredArgsConstructor
 public class User {
 
+    @Id
     int id;
     String refUrl;
     String position;
