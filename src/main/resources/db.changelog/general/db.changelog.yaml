@@ -1,4 +1,0 @@
-databaseChangeLog:
-
-  - include:
-      file: db/changelog/seed/general/001-car.yaml
