@@ -9,5 +9,5 @@ public class ChannelCheck {
 
     private int id;
     private int userId;
-    private String channelsId;
+    private String channelId;
 }
