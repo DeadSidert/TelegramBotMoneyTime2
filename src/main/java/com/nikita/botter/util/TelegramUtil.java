@@ -9,6 +9,6 @@ public final class TelegramUtil {
     }
 
     public static String extractArguments(String text) {
-        return text.substring(text.indexOf(" ") + 1);
+        return text.substring(text.indexOf("_") + 1);
     }
 }

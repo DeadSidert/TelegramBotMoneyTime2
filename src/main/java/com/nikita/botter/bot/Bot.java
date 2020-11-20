@@ -44,30 +44,42 @@ public class Bot extends TelegramLongPollingBot {
     @Override
     public void onUpdateReceived(Update update) {
         String command;
-        String[] txt = null;
         User user;
         SendMessage sendMessage;
         int userId = 0;
         String userIdString;
+        String arguments;
 
         if (isMessageWithText(update)){
             userId = update.getMessage().getFrom().getId();
             userIdString = String.valueOf(userId);
             command = TelegramUtil.extractCommand(update.getMessage().getText());
+            arguments = TelegramUtil.extractArguments(update.getMessage().getText());
 
             // проверка существования юзера
-             if (userHashMap.containsKey(userId)){
-               user = userHashMap.get(userId);
-             } else if (userService.userExist(userId)){
-               user = userService.findById(userId);
-             }
-             else {
-               user = new User(userId);
-               userHashMap.put(userId, user);
-               userService.update(user);
-             }
+             user = existUser(userId);
 
-           if ("/start".equalsIgnoreCase(command)){
+           // проверка пришел ли юзер через реф ссылку
+           if ("/start".equalsIgnoreCase(command) && command.split(" ")[1] != null){
+               if (user.getReferUrl() == null || user.getReferUrl().equals("")){
+                   String refer = command.split(" ")[1];
+                   user.setReferUrl(refer);
+                   int referId = 0;
+                   try {
+                       referId = Integer.parseInt(refer);
+                   }catch (Exception e){
+                       log.error("Ошибка при получении реферала: {} ", refer);
+                   }
+                   User ref = existUser(referId);
+                   ref.setMoney(ref.getMoney() + 3);
+                   ref.setCountRefs(ref.getCountRefs() +1);
+                   userService.update(user);
+                   userService.update(ref);
+                   log.info("Юзер {} привел реферала id: ", userId);
+               }
+           }
+
+           else if ("/start".equalsIgnoreCase(command)){
               if (!user.isAuth()){
                   checkUserInChannels(userId);
               }
@@ -132,5 +144,25 @@ public class Bot extends TelegramLongPollingBot {
 
         keyboardMarkup.setKeyboard(rowList);
         log.info("Создали userMenu");
+    }
+
+    // проверка существования юзера
+    public User existUser(int userId){
+        if (userHashMap.containsKey(userId)){
+            log.info("Юзера достали из мапы id: {}", userId);
+            return userHashMap.get(userId);
+        } else if (userService.userExist(userId)){
+            User user = userService.findById(userId);
+            userHashMap.put(userId, user);
+            log.info("Юзера достали из бд id: {}", userId);
+            return user;
+        }
+        else {
+            User user = new User(userId);
+            userHashMap.put(userId, user);
+            userService.update(user);
+            log.info("Юзера создали id: {}", userId);
+            return user;
+        }
     }
 }
