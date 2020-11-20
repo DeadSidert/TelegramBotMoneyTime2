@@ -6,3 +6,17 @@ bot:
 
 server:
   port: 8082
+
+spring:
+  liquibase:
+    enabled: true
+    contexts: test
+  jpa:
+    properties:
+      hibernate.show_sql: false
+      hibernate:format_sql: false
+    open-in-view: false
+    hibernate.ddl-auto: none
+  datasource:
+    url: jdbc:tc:postgresql:10.9://localhost/test
+    username: test

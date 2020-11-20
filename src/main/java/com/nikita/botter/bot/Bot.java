@@ -97,7 +97,6 @@ public class Bot extends TelegramLongPollingBot {
               else {
                   createUserMenu();
               }
-
               MessageBuilder messageBuilder = MessageBuilder.create(user);
               messageBuilder.line("Добро пожаловать");
               sendMessage = messageBuilder.build();
@@ -110,13 +109,29 @@ public class Bot extends TelegramLongPollingBot {
                if (userIdString.equalsIgnoreCase(adminId)){
                    createAdminMenu();
                    MessageBuilder messageBuilder = MessageBuilder.create(adminId);
+                   sendMessage = messageBuilder.build();
+                   sendMessage.setReplyMarkup(keyboardMarkup);
+                   executeWithExceptionCheck(sendMessage);
                }
                else {
                    MessageBuilder messageBuilder = MessageBuilder.create(user);
                    messageBuilder.line("Вы не админ");
                    executeWithExceptionCheck(messageBuilder.build());
                }
-
+           }
+           // добавить канал
+           else if ("Добавить канал".equalsIgnoreCase(command)){
+               if (userIdString.equalsIgnoreCase(adminId)){
+                   MessageBuilder messageBuilder = MessageBuilder.create(adminId);
+                   sendMessage = messageBuilder.build();
+                   sendMessage.setReplyMarkup(keyboardMarkup);
+                   executeWithExceptionCheck(sendMessage);
+               }
+               else {
+                   MessageBuilder messageBuilder = MessageBuilder.create(user);
+                   messageBuilder.line("Вы не админ");
+                   executeWithExceptionCheck(messageBuilder.build());
+               }
            }
 
 
@@ -231,6 +246,9 @@ public class Bot extends TelegramLongPollingBot {
 
     // создание меню для юзеров
     public void createUserMenu(){
+        keyboardMarkup.setResizeKeyboard(true);
+        keyboardMarkup.setOneTimeKeyboard(false);
+        keyboardMarkup.setSelective(true);
         List<KeyboardRow> rowList = new ArrayList<>();
 
         KeyboardRow keyboardRow = new KeyboardRow();
@@ -254,6 +272,9 @@ public class Bot extends TelegramLongPollingBot {
 
     //Создание админ меню
     public void createAdminMenu(){
+        keyboardMarkup.setResizeKeyboard(true);
+        keyboardMarkup.setOneTimeKeyboard(false);
+        keyboardMarkup.setSelective(true);
         List<KeyboardRow> rowList = new ArrayList<>();
 
         KeyboardRow keyboardRow = new KeyboardRow();
