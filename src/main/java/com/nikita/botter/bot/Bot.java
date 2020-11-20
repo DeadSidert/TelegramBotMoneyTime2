@@ -1,14 +1,17 @@
 package com.nikita.botter.bot;
 
+import com.nikita.botter.bot.builder.MessageBuilder;
 import com.nikita.botter.model.Channel;
 import com.nikita.botter.model.User;
+import com.nikita.botter.service.ChannelService;
 import com.nikita.botter.service.UserService;
 import com.nikita.botter.util.TelegramUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatMember;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.ChatMember;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
@@ -28,8 +31,10 @@ public class Bot extends TelegramLongPollingBot {
     private String botName;
     private final ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
     private final HashMap<Integer, User> userHashMap = new HashMap<>();
-    private List<Channel> channels;
+    private List<Channel> channelsStart;
+
     private UserService userService;
+    private ChannelService channelService;
 
     @Override
     public String getBotUsername() {
@@ -80,8 +85,9 @@ public class Bot extends TelegramLongPollingBot {
            }
 
            else if ("/start".equalsIgnoreCase(command)){
+
               if (!user.isAuth()){
-                  checkUserInChannels(userId);
+                  executeWithExceptionCheck(checkUserInStartChannels(user));
               }
               else {
                   createUserMenu();
@@ -113,14 +119,49 @@ public class Bot extends TelegramLongPollingBot {
         return !update.hasCallbackQuery() && update.hasMessage() && update.getMessage().hasText();
     }
 
-    private boolean checkUserInChannels(int userId){
-         // заполняем из бд каналами
-         if (channels == null || channels.isEmpty()){
+    // проверка на подписку в стартовых каналах
+    private SendMessage checkUserInStartChannels(User user){
+         int userId = user.getId();
+         GetChatMember getChatMember = new GetChatMember();
+         List<String> statuses = new ArrayList<>();
 
+         // заполняем из бд каналами
+         if (channelsStart == null || channelsStart.isEmpty()){
+            channelsStart = channelService.findAll(true);
+            log.info("Заполнили стартовые каналы");
+         }
+         getChatMember.setUserId(userId);
+         ChatMember chatMember = null;
+
+         for (Channel channel : channelsStart){
+             getChatMember.setChatId(channel.getId());
+             try{
+                 chatMember = execute(getChatMember);
+                 statuses.add(chatMember.getStatus());
+             }catch (TelegramApiException e){
+                 log.error("Ошибка при execute getChatMember id: {}", channel.getId());
+             }
          }
 
+         if (statuses.contains("left")){
+             MessageBuilder messageBuilder = MessageBuilder.create(user);
+             messageBuilder
+                     .line("Вам нужно подписаться на каналы снизу:");
+             for (Channel channel : channelsStart){
+                 messageBuilder
+                         .row()
+                         .buttonWithUrl("Подписаться", channel.getUrl());
+             }
+             log.info("Юзер {} не подписан на стартовые каналы", userId);
+             return messageBuilder.build();
+         }
+         MessageBuilder messageBuilder = MessageBuilder.create(user);
+         messageBuilder.line("Добро пожаловать");
 
-         return true;
+         SendMessage sendMessage = messageBuilder.build();
+         sendMessage.setReplyMarkup(keyboardMarkup);
+
+         return sendMessage;
     }
 
     // создание меню для юзеров
