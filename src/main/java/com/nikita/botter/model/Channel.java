@@ -8,7 +8,14 @@ import lombok.Setter;
 public class Channel {
 
     String id;
-    int userId;
     String url;
+    double price;
     boolean start;
+
+    public Channel(String id, String url, double price, boolean start) {
+        this.id = id;
+        this.url = url;
+        this.price = price;
+        this.start = start;
+    }
 }

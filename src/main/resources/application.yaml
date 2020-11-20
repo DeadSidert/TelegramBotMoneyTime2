@@ -1,7 +1,7 @@
 bot:
-  adminId:
-  token:
-  name:
+  adminId: 213411446
+  token: 1392424435:AAFWlQHWheZY26S6xCMNXtRyN0E_7-8V6h8
+  name: MoneyBot
   botUrl: https://t.me/Monetary24bot
 
 server:

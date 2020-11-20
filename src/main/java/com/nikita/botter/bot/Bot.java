@@ -6,8 +6,10 @@ import com.nikita.botter.model.User;
 import com.nikita.botter.service.ChannelService;
 import com.nikita.botter.service.UserService;
 import com.nikita.botter.util.TelegramUtil;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatMember;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -21,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
+@Component
+@RequiredArgsConstructor
 public class Bot extends TelegramLongPollingBot {
 
     @Value("${bot.token}")
@@ -34,10 +38,8 @@ public class Bot extends TelegramLongPollingBot {
 
     private final ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
 
-    private List<Channel> channels;
-
-    private UserService userService;
-    private ChannelService channelService;
+    private final UserService userService;
+    private final ChannelService channelService;
 
     @Override
     public String getBotUsername() {
@@ -52,6 +54,7 @@ public class Bot extends TelegramLongPollingBot {
     @Override
     public void onUpdateReceived(Update update) {
         String command;
+        String[] txt;
         User user;
         SendMessage sendMessage;
         int userId = 0;
@@ -63,13 +66,18 @@ public class Bot extends TelegramLongPollingBot {
             userId = update.getMessage().getFrom().getId();
             userIdString = String.valueOf(userId);
             command = TelegramUtil.extractCommand(update.getMessage().getText());
-            arguments = TelegramUtil.extractArguments(update.getMessage().getText());
+            txt = update.getMessage().getText().split(" ");
+
 
             // проверка существования юзера
              user = existUser(userId);
 
+             if ("back".equalsIgnoreCase(user.getPosition())){
+                 executeWithExceptionCheck(fabricPositions(update, user.getPosition()));
+             }
+
            // проверка пришел ли юзер через реф ссылку
-           if ("/start".equalsIgnoreCase(command) && command.split(" ")[1] != null){
+           if ("/start".equalsIgnoreCase(command) && txt.length > 1){
                if (user.getReferUrl() == null || user.getReferUrl().equals("")){
                    String refer = command.split(" ")[1];
                    user.setReferUrl(refer);
@@ -122,9 +130,19 @@ public class Bot extends TelegramLongPollingBot {
            // добавить канал
            else if ("Добавить канал".equalsIgnoreCase(command)){
                if (userIdString.equalsIgnoreCase(adminId)){
-                   MessageBuilder messageBuilder = MessageBuilder.create(adminId);
-                   sendMessage = messageBuilder.build();
-                   sendMessage.setReplyMarkup(keyboardMarkup);
+                   sendMessage = addChannel(update);
+                   executeWithExceptionCheck(sendMessage);
+               }
+               else {
+                   MessageBuilder messageBuilder = MessageBuilder.create(user);
+                   messageBuilder.line("Вы не админ");
+                   executeWithExceptionCheck(messageBuilder.build());
+               }
+           }
+           // удалить канал
+           else if ("Удалить канал".equalsIgnoreCase(command)){
+               if (userIdString.equalsIgnoreCase(adminId)){
+                   sendMessage = deleteChannel(update);
                    executeWithExceptionCheck(sendMessage);
                }
                else {
@@ -149,9 +167,21 @@ public class Bot extends TelegramLongPollingBot {
             if ("/start_continue".equalsIgnoreCase(command)){
                 executeWithExceptionCheck(checkStartImpl(user));
             }
+            else if ("/cancel".equalsIgnoreCase(command)){
+                executeWithExceptionCheck(cancel(user));
+            }
         }
     }
 
+    public SendMessage fabricPositions(Update update, String position){
+      if ("add_channel".equalsIgnoreCase(position)){
+          return addChannelImpl(update);
+      }
+      else if ("delete_channel".equalsIgnoreCase(position)){
+            return deleteChannelImpl(update);
+      }
+      return new SendMessage();
+    }
 
     private void executeWithExceptionCheck(SendMessage sendMessage){
         try {
@@ -244,6 +274,95 @@ public class Bot extends TelegramLongPollingBot {
         return sendMessage;
     }
 
+    // добавление канала
+    public SendMessage addChannel(Update update){
+        int userId = update.getMessage().getFrom().getId();
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        User user = userService.findById(userId);
+        user.setPosition("add_channel");
+        userService.update(user);
+        log.info("Позиция юзера {} add_channel", userId);
+
+        return messageBuilder
+                .line("Введите @id url price start(0 or 1)")
+                .row()
+                .button("Отмена", "/cancel")
+                .build();
+    }
+
+    // удаление канала
+    public SendMessage deleteChannel(Update update){
+        int userId = update.getMessage().getFrom().getId();
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        User user = userService.findById(userId);
+        user.setPosition("delete_channel");
+        userService.update(user);
+        log.info("Позиция юзера {} delete_channel", userId);
+
+        return messageBuilder
+                .line("Введите @id")
+                .row()
+                .button("Отмена", "/cancel")
+                .build();
+    }
+
+    // удаление канала Impl
+    public SendMessage deleteChannelImpl(Update update){
+        int userId = update.getMessage().getFrom().getId();
+        String channelId = update.getMessage().getText();
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        User user = userService.findById(userId);
+        user.setPosition("back");
+        userService.update(user);
+
+        log.info("Юзер {} удалил канал", userId);
+
+        if (!channelService.isExist(channelId)){
+            return messageBuilder
+                    .line("Такого канала не существует, введите заново")
+                    .build();
+        }
+        channelService.delete(channelId);
+
+        return messageBuilder
+                .line("Канал удален")
+                .build();
+    }
+
+    public SendMessage addChannelImpl(Update update){
+        int userId = update.getMessage().getFrom().getId();
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        User user = userService.findById(userId);
+
+        String[] arguments = update.getMessage().getText().split(" ");
+
+        if (arguments.length < 4){
+            log.error("Неправильный размер аргументов при добавлении канала");
+            return messageBuilder.line("Вы указали не 4 аргумента").build();
+        }
+
+        String id =  arguments[0];
+        String url = arguments[1];
+        double price = 0;
+
+        try {
+            price = Double.parseDouble(arguments[2]);
+        }catch (Exception e){
+            log.error("Неправильный price при добавлении канала");
+            return messageBuilder.line("price должно быть числом").build();
+        }
+        boolean start = arguments[3].equals("1");
+
+        Channel channel = new Channel(id, url, price, start);
+        user.setPosition("back");
+
+        channelService.update(channel);
+        userService.update(user);
+        log.info("Юзер {} добавил канал", userId);
+
+        return messageBuilder.line("Канал успешно добавлен").build();
+    }
+
     // создание меню для юзеров
     public void createUserMenu(){
         keyboardMarkup.setResizeKeyboard(true);
@@ -308,5 +427,12 @@ public class Bot extends TelegramLongPollingBot {
             log.info("Юзера создали id: {}", userId);
             return user;
         }
+    }
+
+    public SendMessage cancel(User user){
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(user.getId()));
+        user.setPosition("back");
+        userService.update(user);
+        return messageBuilder.line("Операция отменена").build();
     }
 }
