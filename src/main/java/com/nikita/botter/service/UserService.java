@@ -20,12 +20,16 @@ public class UserService {
 
     public Usr findById(int id){
         return userRepository.findById(id).
-                orElse(update(new Usr(id)));
+                orElseGet(() -> userRepository.save(new Usr(id)));
     }
 
     public Usr update(Usr user){
         user.setRefUrl(botUrl + "?start=" + user.getId());
         return userRepository.save(user);
+    }
+
+    public List<Usr> updateAll(List<Usr> usrList){
+        return userRepository.saveAll(usrList);
     }
 
     public int countPartners(int userId){
@@ -34,5 +38,9 @@ public class UserService {
 
     public List<Usr> getAllNotBonus(){
         return userRepository.getAllNotBonus();
+    }
+
+    public List<Usr> findAll(){
+        return userRepository.findAll();
     }
 }

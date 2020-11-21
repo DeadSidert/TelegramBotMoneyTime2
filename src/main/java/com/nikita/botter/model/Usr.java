@@ -21,7 +21,7 @@ public class Usr {
     int countRefs;
     // тот, кто привел юзера
     int referId;
-    int money;
+    double money;
     String qiwi;
     private boolean bonus;
     private int moneyFromPartners;
@@ -34,7 +34,7 @@ public class Usr {
         this.countRefs = 0;
         this.referId = 0;
         this.money = 0;
-        this.qiwi = "";
+        this.qiwi = "Qiwi не установлен";
         this.bonus = false;
         this.moneyFromPartners = 0;
     }

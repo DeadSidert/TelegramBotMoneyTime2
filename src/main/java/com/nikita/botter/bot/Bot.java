@@ -2,25 +2,34 @@ package com.nikita.botter.bot;
 
 import com.nikita.botter.bot.builder.MessageBuilder;
 import com.nikita.botter.model.Channel;
+import com.nikita.botter.model.Payment;
 import com.nikita.botter.model.Usr;
+import com.nikita.botter.service.ChannelCheckService;
 import com.nikita.botter.service.ChannelService;
+import com.nikita.botter.service.PaymentService;
 import com.nikita.botter.service.UserService;
 import com.nikita.botter.util.TelegramUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatMember;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.ChatMember;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Component
@@ -36,10 +45,15 @@ public class Bot extends TelegramLongPollingBot {
     @Value("${bot.adminId}")
     private String adminId;
 
+    @Value("${bot.adminUrl}")
+    private String adminUrl;
+
     private final ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
 
     private final UserService userService;
     private final ChannelService channelService;
+    private final PaymentService paymentService;
+    private final ChannelCheckService channelCheckService;
 
     @Override
     public String getBotUsername() {
@@ -71,23 +85,25 @@ public class Bot extends TelegramLongPollingBot {
             // проверка существования юзера
              user = existUser(userId);
 
-             if ("back".equalsIgnoreCase(user.getPosition())){
+             if (!"back".equalsIgnoreCase(user.getPosition())){
                  executeWithExceptionCheck(fabricPositions(update, user.getPosition()));
              }
 
            // проверка пришел ли юзер через реф ссылку
            if ("/start".equalsIgnoreCase(command) && txt.length > 1){
-               if (user.getReferUrl() == null || user.getReferUrl().equals("")){
+               if (user.getReferId() == 0){
                    String refer = command.split(" ")[1];
-                   user.setReferUrl(refer);
                    int referId = 0;
                    try {
                        referId = Integer.parseInt(refer);
                    }catch (Exception e){
                        log.error("Ошибка при получении реферала: {} ", refer);
                    }
+                   user.setReferId(referId);
+
                    Usr ref = existUser(referId);
                    ref.setMoney(ref.getMoney() + 3);
+                   ref.setMoneyFromPartners(ref.getMoneyFromPartners() + 3);
                    ref.setCountRefs(ref.getCountRefs() + 1);
                    userService.update(user);
                    userService.update(ref);
@@ -110,6 +126,22 @@ public class Bot extends TelegramLongPollingBot {
               sendMessage.setReplyMarkup(keyboardMarkup);
               log.info("Приветственное сообщение юзеру {}", userIdString);
               executeWithExceptionCheck(sendMessage);
+           }
+           // информация в меню
+           else if ("\uD83D\uDCC6 Информация".equalsIgnoreCase(command)){
+               executeWithExceptionCheck(info(update));
+           }
+           // партнерам в меню
+           else if ("\uD83D\uDC54 Партнерам".equalsIgnoreCase(command)){
+               executeWithExceptionCheck(partners(update));
+           }
+           // баланс в меню
+           else if ("\uD83D\uDCB5 Баланс".equalsIgnoreCase(command)){
+               executeWithExceptionCheck(balance(update));
+           }
+           // бонус в меню
+           else if ("\uD83D\uDD06 Бонус".equalsIgnoreCase(command)){
+               executeWithExceptionCheck(bonus(update));
            }
            // войти в админ меню
            else if ("админМеню".equalsIgnoreCase(command)){
@@ -140,6 +172,19 @@ public class Bot extends TelegramLongPollingBot {
                    executeWithExceptionCheck(messageBuilder.build());
                }
            }
+           // проверка запросов на выплаты
+           else if ("Проверить запросы на выплаты".equalsIgnoreCase(command)){
+               if (userIdString.equalsIgnoreCase(adminId)){
+                   sendMessage = checkPayments(update);
+                   executeWithExceptionCheck(sendMessage);
+               }
+               else {
+                   MessageBuilder messageBuilder = MessageBuilder.create(user);
+                   messageBuilder.line("Вы не админ");
+                   executeWithExceptionCheck(messageBuilder.build());
+               }
+           }
+           // выйти в обычное меню
            else if ("Выйти".equalsIgnoreCase(command)){
                if (userIdString.equalsIgnoreCase(adminId)){
                    sendMessage = MessageBuilder.create(userIdString).line("Вы вышли в главное меню").build();
@@ -177,6 +222,18 @@ public class Bot extends TelegramLongPollingBot {
                    executeWithExceptionCheck(messageBuilder.build());
                }
            }
+           // список каналов
+           else if ("Список пользователей".equalsIgnoreCase(command)){
+               if (userIdString.equalsIgnoreCase(adminId)){
+                   sendMessage = allUsers(update);
+                   executeWithExceptionCheck(sendMessage);
+               }
+               else {
+                   MessageBuilder messageBuilder = MessageBuilder.create(user);
+                   messageBuilder.line("Вы не админ");
+                   executeWithExceptionCheck(messageBuilder.build());
+               }
+           }
 
 
         }
@@ -193,8 +250,29 @@ public class Bot extends TelegramLongPollingBot {
             if ("/start_continue".equalsIgnoreCase(command)){
                 executeWithExceptionCheck(checkStartImpl(user));
             }
+            // отмена действия
             else if ("/cancel".equalsIgnoreCase(command)){
                 executeWithExceptionCheck(cancel(user));
+            }
+            // установка киви юзером
+            else if ("/setQiwi".equalsIgnoreCase(command)){
+                executeWithExceptionCheck(setQiwi(update));
+            }
+            // ввод суммы на вывод
+            else if ("/withMoney".equalsIgnoreCase(command)){
+                executeWithExceptionCheck(withMoney(update));
+            }
+            // ежедневный бонус
+            else if ("/daily_bonus".equalsIgnoreCase(command)){
+                executeWithExceptionCheck(dailyBonus(update));
+            }
+            // вывод успешен
+            else if ("/success".equalsIgnoreCase(TelegramUtil.extractCommand(command))){
+                success(update).forEach(this::executeWithExceptionCheck);
+            }
+            // вывод отменен
+            else if ("/notSuc".equalsIgnoreCase(TelegramUtil.extractCommand(command))){
+                notSuccess(update).forEach(this::executeWithExceptionCheck);
             }
         }
     }
@@ -205,6 +283,12 @@ public class Bot extends TelegramLongPollingBot {
       }
       else if ("delete_channel".equalsIgnoreCase(position)){
             return deleteChannelImpl(update);
+      }
+      else if ("киви".equalsIgnoreCase(position)){
+          executeWithExceptionCheck(setQiwiImpl(update));
+      }
+      else if ("вывод".equalsIgnoreCase(position)){
+          executeWithExceptionCheck(withMoneyImpl(update));
       }
       return new SendMessage();
     }
@@ -453,6 +537,304 @@ public class Bot extends TelegramLongPollingBot {
     }
 
     public SendMessage allChannels(Update update){
-        return new SendMessage();
+        int userId = update.getMessage().getFrom().getId();
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        List<Channel> channels = channelService.getChannels();
+        if (channels.isEmpty()){
+            return messageBuilder.line("Каналов нет").build();
+        }
+        channels.forEach(e ->{
+            messageBuilder
+                    .line("\nid: " + e.getId() + " | url: " + e.getUrl() + " | price: " + e.getPrice());
+        });
+        SendMessage sendMessage = messageBuilder.build();
+        sendMessage.disableWebPagePreview();
+        return sendMessage;
+    }
+
+    public SendMessage allUsers(Update update){
+        int userId = update.getMessage().getFrom().getId();
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        List<Usr> users = userService.findAll();
+        users.forEach(e ->{
+            messageBuilder
+                    .line("\nid: " + e.getId() + " | money: " + e.getMoney() + " | qiwi: " + e.getQiwi() + " | position: " + e.getPosition());
+        });
+        SendMessage sendMessage = messageBuilder.build();
+        sendMessage.disableWebPagePreview();
+        return sendMessage;
+    }
+
+    public SendMessage info(Update update){
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(update.getMessage().getFrom().getId()));
+        log.info("Юзер {} вызвал Партнерам", update.getMessage().getFrom().getId());
+        messageBuilder
+                .line("\uD83C\uDF93 Попал в бота, но не знаешь, что делать?\n" +
+                        "\n" +
+                        "✅ Бот является честным, и реально выплачивает своим пользователям!\n" +
+                        "\n" +
+                        "\uD83C\uDF34 Начни получать доход только в проверенных ботах, от нашей денежной компании.\n" +
+                        "\n" +
+                        "Связь с админом: @" + adminUrl);
+        return messageBuilder.build();
+    }
+
+    public SendMessage partners(Update update){
+        Usr user = userService.findById(update.getMessage().getFrom().getId());
+        log.info("Юзер {} вызвал Партнерам", user.getId());
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(update.getMessage().getFrom().getId()));
+        messageBuilder
+                .line("\uD83D\uDC54 Приглашая друзей или просто людей в робота, по вашей реферальной ссылке вы увеличиваете ваш доход:\n" +
+                        "\n" +
+                        "\uD83D\uDCB0 За приглашение друга: 3.0₽\n" +
+                        "\n" +
+                        "\uD83D\uDCA1 Ваша ссылка: "+user.getRefUrl()+"\n" +
+                        "\n" +
+                        "\uD83D\uDC8E Всего заработано: "+user.getMoneyFromPartners()+"₽");
+        SendMessage sendMessage = messageBuilder.build();
+        sendMessage.disableWebPagePreview();
+        return sendMessage;
+    }
+
+    public SendMessage balance(Update update){
+        int userId = update.getMessage().getFrom().getId();
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        Usr user = userService.findById(userId);
+        messageBuilder.line("\uD83D\uDC54 Ваш кабинет\n" +
+                "⚙️ Ваш ID: "+userId+"\n" +
+                "\n" +
+                "\uD83D\uDCB0 Ваш личный баланс: "+user.getMoney()+"₽\n" +
+                "\uD83D\uDCB2 Заработано с партнеров: "+user.getMoneyFromPartners()+"₽\n" +
+                "\n" +
+                "\uD83D\uDC65 Всего партнеров: "+userService.countPartners(userId)+" человек \n" +
+                "\uD83D\uDCB0 Ваш Qiwi: " + user.getQiwi())
+                .row()
+                .button("\uD83D\uDCB0 Ваши реквизиты", "/setQiwi")
+                .row()
+                .button("\uD83D\uDCB0 Вывести деньги", "/withMoney");
+        return messageBuilder.build();
+    }
+
+    public SendMessage setQiwi(Update update){
+        int userId = update.getCallbackQuery().getFrom().getId();
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        Usr user = userService.findById(userId);
+        user.setPosition("киви");
+        userService.update(user);
+
+        messageBuilder
+                .line("Внимание! Проверяйте свой номер, чтобы избежать неполадок при выводе\n")
+                .line("Укажите ваш номер qiwi:")
+                .row()
+                .button("Отмена", "/cancel");
+        return messageBuilder.build();
+    }
+
+    public SendMessage setQiwiImpl(Update update){
+        int userId = update.getMessage().getFrom().getId();
+        String qiwi = update.getMessage().getText();
+        Usr user = userService.findById(userId);
+        MessageBuilder messageBuilder = MessageBuilder.create(user);
+
+        user.setQiwi(qiwi);
+        user.setPosition("back");
+        userService.update(user);
+
+        log.info("Юзер {} установил qiwi", userId);
+        return messageBuilder.line("Номер " + qiwi + " установлен").build();
+    }
+
+    public SendMessage withMoney(Update update){
+        int userId = update.getCallbackQuery().getFrom().getId();
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        Usr user = userService.findById(userId);
+        user.setPosition("вывод");
+        userService.update(user);
+
+        messageBuilder
+                .line("Внимание! Проверяйте, что у вас установлены реквизиты\n")
+                .line("Укажите сумму для вывода:")
+                .row()
+                .button("Отмена", "/cancel");
+        return messageBuilder.build();
+    }
+
+    public SendMessage withMoneyImpl(Update update){
+        int userId = update.getMessage().getFrom().getId();
+        String sum = update.getMessage().getText();
+        Usr user = userService.findById(userId);
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        double money = 0;
+
+        try {
+            money = Double.parseDouble(sum);
+        }catch (Exception e){
+            log.error("Юзер {} ввел неправильную сумму", userId);
+            return messageBuilder.line("Вы ввели не число").build();
+        }
+
+        if (money < 40){
+            return messageBuilder.line("Вывод от 40 рублей").build();
+        }
+        if (money > user.getMoney()){
+            return messageBuilder.line("У вас недостаточно средств для вывода").build();
+        }
+        if (user.getQiwi().equalsIgnoreCase("Qiwi не установлен")){
+            return messageBuilder.line("Вы не установили Qiwi кошелек").build();
+        }
+
+        Payment payment = new Payment();
+        payment.setUserId(userId);
+        payment.setSuccessful(false);
+        payment.setSum(money);
+        payment.setDate(new SimpleDateFormat("dd.MM.yyyy").format(new Date()));
+        payment.setTimePayment(new SimpleDateFormat("HH:mm").format(new Date()));
+
+        user.setMoney(user.getMoney() - money);
+        user.setPosition("back");
+        userService.update(user);
+        paymentService.update(payment);
+
+        log.info("Юзер {} запросил вывод", userId);
+        return messageBuilder.line("Запрос на вывод создан, обработка 1-3 дня").build();
+    }
+
+    public SendMessage checkPayments(Update update){
+        int userId = update.getMessage().getFrom().getId();
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        List<Payment> payments = paymentService.findAllByNotSuccessful();
+        if (payments.isEmpty()){
+            return messageBuilder.line("Запросов нет").build();
+        }
+        for (Payment p : payments){
+            Usr user = userService.findById(p.getUserId());
+            messageBuilder.line("Id: " + p.getId() + " | userId: " + p.getUserId()
+                    + " | сумма: " + p.getSum() + " \nQiwi: " + user.getQiwi() + " | Дата: " + p.getDate() + " | Время: " + p.getTimePayment())
+                    .row()
+                    .button("Выплачено", "/success_" + p.getId())
+                    .row()
+                    .button("Неверный Qiwi", "/notSuc_" + p.getId());
+        }
+        return messageBuilder.build();
+    }
+
+    public List<SendMessage> success(Update update){
+        String text = update.getCallbackQuery().getData().split("_")[1];
+        int paymentId = 0;
+        List<SendMessage> messages = new ArrayList<>();
+        MessageBuilder messageBuilder;
+
+        try {
+            paymentId = Integer.parseInt(text);
+        }catch (Exception e){
+            log.error("Ошибка при парсинге id payment");
+        }
+        Payment payment = paymentService.findById(paymentId);
+        payment.setSuccessful(true);
+        int userId = payment.getUserId();
+        paymentService.update(payment);
+
+        messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        messageBuilder.line("Вам выплачено "+payment.getSum() + " руб.");
+        messages.add(messageBuilder.build());
+
+        messageBuilder = MessageBuilder.create(adminId);
+        messageBuilder.line("Транзакция "+ payment.getId()+ " выполнена успешно");
+        messages.add(messageBuilder.build());
+
+        return messages;
+    }
+
+    public List<SendMessage> notSuccess(Update update){
+        String text = update.getCallbackQuery().getData().split("_")[1];
+        int paymentId = 0;
+        List<SendMessage> messages = new ArrayList<>();
+        MessageBuilder messageBuilder;
+
+        try {
+            paymentId = Integer.parseInt(text);
+        }catch (Exception e){
+            log.error("Ошибка при парсинге id payment");
+        }
+        Payment payment = paymentService.findById(paymentId);
+        payment.setSuccessful(true);
+        int userId = payment.getUserId();
+        paymentService.update(payment);
+
+        Usr usr = userService.findById(userId);
+        usr.setMoney(usr.getMoney() + payment.getSum());
+        userService.update(usr);
+
+        messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        messageBuilder.line("Вам возвращена сумма "+payment.getSum() + " руб.\n" +
+                "Ваш Qiwi неверен, проверьте и создайте запрос вновь");
+        messages.add(messageBuilder.build());
+
+        messageBuilder = MessageBuilder.create(adminId);
+        messageBuilder.line("Транзакция "+ payment.getId()+ " отменена, деньги возвращены юзеру");
+        messages.add(messageBuilder.build());
+
+        return messages;
+    }
+
+    public SendMessage bonus(Update update){
+        int userId = update.getMessage().getFrom().getId();
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+
+        String line1 = "<a href=\"https://t.me/joinchat/AAAAAFMx1O_mhmYRp-_nKA\">Подписаться</a>";
+        String line2 = "<a href=\"https://t.me/joinchat/AAAAAFg7GiqFChlfVONbhg\">Подписаться</a>";
+        String line3 = "<a href=\"https://t.me/joinchat/AAAAAE2ZdKx5fbJiMS8v6g\">Подписаться</a>";
+
+
+
+        SendMessage sendMessage =  messageBuilder
+                .line("\uD83D\uDD12 ВАЖНО, ЧТОБЫ СОБРАТЬ следующий бонус, ВАМ нужно ПОДПИСАТЬСЯ на все эти каналы! ⤵️\n" +
+                        "\n" +
+                        "1. "+line1+" \uD83D\uDC48\uD83C\uDFFB\n" +
+                        "2. "+line2+" \uD83D\uDC48\uD83C\uDFFB\n" +
+                        "3. "+line3+" \uD83D\uDC48\uD83C\uDFFB\n" +
+                        "\uD83C\uDF81 ЧТОБЫ ПОЛУЧИТЬ СЛЕДУЮЩИЙ БОНУС - ПОДПИШИСЬ НА ВСЕХ СПОНСОРОВ \uD83D\uDC46\uD83C\uDFFB\n" +
+                        "\n" +
+                        "\uD83E\uDD1D По вопросам рекламы - @" + botName)
+                .row()
+                .button("\uD83C\uDF81 Собрать бонус", "/daily_bonus")
+                .build();
+        sendMessage.enableHtml(true);
+        sendMessage.disableWebPagePreview();
+        return sendMessage;
+    }
+
+    public SendMessage dailyBonus(Update update){
+        int userId = update.getCallbackQuery().getFrom().getId();
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        Usr user = userService.findById(userId);
+
+        if (user.isBonus()){
+            return messageBuilder
+                    .line("Вы уже получали бонус за последние 10 часов")
+                    .build();
+        }
+
+        user.setMoney(user.getMoney() + 1);
+        user.setBonus(true);
+        userService.update(user);
+
+        return messageBuilder
+                .line("Вы получили 1 бонусный рубль\n")
+                .line("Приходите через 10 часов")
+                .build();
+    }
+
+    @Scheduled(fixedDelay = 36000000)
+    public void bon(){
+        List<Usr> users = userService.getAllNotBonus();
+        users.forEach(u -> u.setBonus(false));
+        userService.updateAll(users);
+        users.forEach(u ->{
+            MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(u.getId()));
+            executeWithExceptionCheck(messageBuilder
+                    .line("Ваш ежедневный бонус обновлен")
+                    .build());
+        });
     }
 }

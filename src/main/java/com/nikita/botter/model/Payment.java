@@ -19,7 +19,7 @@ public class Payment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
     private int userId;
-    private int sum;
+    private double sum;
     private String date;
     private String timePayment;
     private boolean successful;

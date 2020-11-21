@@ -13,9 +13,9 @@ CREATE TABLE usr (
 );
 
 CREATE TABLE payment (
-                         id uuid NOT NULL,
+                         id serial NOT NULL,
                          user_id integer,
-                         sum integer,
+                         sum decimal,
                          date varchar,
                          time_payment varchar,
                          successful boolean,
@@ -31,7 +31,7 @@ CREATE TABLE channel (
 );
 
 CREATE TABLE channel_check (
-                               id uuid NOT NULL,
+                               id serial NOT NULL,
                                channel_id varchar(100),
                                user_id integer,
                                CONSTRAINT pk_channel_check PRIMARY KEY (id)

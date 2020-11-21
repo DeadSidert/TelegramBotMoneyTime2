@@ -1,5 +1,6 @@
 bot:
   adminId: 213411446
+  adminUrl : fry55
   token: 1392424435:AAFWlQHWheZY26S6xCMNXtRyN0E_7-8V6h8
   name: MoneyBot
   botUrl: https://t.me/Monetary24bot
@@ -20,7 +21,7 @@ spring:
   datasource:
     #  Note that the hostname, port and database name on url property and username and password properties will be ignored
     #  and it will be used default container values
-    url: jdbc:postgresql://localhost:5432/telegrab_bot?user=nikita&password=91823God&currentSchema=public
+    url: jdbc:postgresql://localhost:5432/tel?user=nikita&password=91823God&currentSchema=public
     driver-class-name: org.postgresql.Driver
     username: nikita
     password: 91823God
