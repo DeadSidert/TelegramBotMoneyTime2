@@ -24,8 +24,8 @@ public interface JpaUserRepository extends JpaRepository<Usr, Integer> {
     @Override
     void deleteById(Integer integer);
 
-    @Query("SELECT u FROM Usr u WHERE u.referId=:usr_id")
-    List<Usr> getAllPartners(@Param("usr_id") int id);
+    @Query("SELECT count(u) FROM Usr u WHERE u.referId=:usr_id")
+    int countPartners(@Param("usr_id") int id);
 
     @Query("SELECT u FROM Usr u WHERE u.bonus=true ")
     List<Usr> getAllNotBonus();

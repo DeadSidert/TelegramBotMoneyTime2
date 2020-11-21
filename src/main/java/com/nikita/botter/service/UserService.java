@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -22,7 +24,15 @@ public class UserService {
     }
 
     public Usr update(Usr user){
-        user.setReferUrl(botUrl + "?start=" + user.getId());
+        user.setRefUrl(botUrl + "?start=" + user.getId());
         return userRepository.save(user);
+    }
+
+    public int countPartners(int userId){
+        return userRepository.countPartners(userId);
+    }
+
+    public List<Usr> getAllNotBonus(){
+        return userRepository.getAllNotBonus();
     }
 }
