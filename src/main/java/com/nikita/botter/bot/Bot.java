@@ -2,6 +2,7 @@ package com.nikita.botter.bot;
 
 import com.nikita.botter.bot.builder.MessageBuilder;
 import com.nikita.botter.model.Channel;
+import com.nikita.botter.model.ChannelCheck;
 import com.nikita.botter.model.Payment;
 import com.nikita.botter.model.Usr;
 import com.nikita.botter.service.ChannelCheckService;
@@ -118,14 +119,13 @@ public class Bot extends TelegramLongPollingBot {
               }
               else {
                   createUserMenu();
+                  MessageBuilder messageBuilder = MessageBuilder.create(user);
+                  messageBuilder.line("Добро пожаловать");
+                  sendMessage = messageBuilder.build();
+                  sendMessage.setReplyMarkup(keyboardMarkup);
+                  log.info("Приветственное сообщение юзеру {}", userIdString);
+                  executeWithExceptionCheck(sendMessage);
               }
-
-              MessageBuilder messageBuilder = MessageBuilder.create(user);
-              messageBuilder.line("Добро пожаловать");
-              sendMessage = messageBuilder.build();
-              sendMessage.setReplyMarkup(keyboardMarkup);
-              log.info("Приветственное сообщение юзеру {}", userIdString);
-              executeWithExceptionCheck(sendMessage);
            }
            // информация в меню
            else if ("\uD83D\uDCC6 Информация".equalsIgnoreCase(command)){
@@ -142,6 +142,9 @@ public class Bot extends TelegramLongPollingBot {
            // бонус в меню
            else if ("\uD83D\uDD06 Бонус".equalsIgnoreCase(command)){
                executeWithExceptionCheck(bonus(update));
+           }
+           else if ("➕ Подписки".equalsIgnoreCase(command)){
+               executeWithExceptionCheck(joined(update));
            }
            // войти в админ меню
            else if ("админМеню".equalsIgnoreCase(command)){
@@ -247,7 +250,7 @@ public class Bot extends TelegramLongPollingBot {
             user = existUser(userId);
 
             // проверка на подписку в стартовых каналах
-            if ("/start_continue".equalsIgnoreCase(command)){
+            if ("/startContinue".equalsIgnoreCase(command)){
                 executeWithExceptionCheck(checkStartImpl(user));
             }
             // отмена действия
@@ -265,6 +268,9 @@ public class Bot extends TelegramLongPollingBot {
             // ежедневный бонус
             else if ("/daily_bonus".equalsIgnoreCase(command)){
                 executeWithExceptionCheck(dailyBonus(update));
+            }
+            else if ("/getGift".equalsIgnoreCase(TelegramUtil.extractCommand(command))){
+                executeWithExceptionCheck(getGift(update));
             }
             // вывод успешен
             else if ("/success".equalsIgnoreCase(TelegramUtil.extractCommand(command))){
@@ -777,6 +783,93 @@ public class Bot extends TelegramLongPollingBot {
         return messages;
     }
 
+    public SendMessage joined(Update update){
+        int userId = 0;
+        if (update.hasMessage()){
+            userId = update.getMessage().getFrom().getId();
+        }else {
+            userId = update.getCallbackQuery().getFrom().getId();
+        }
+
+        List<Channel> channels = channelService.findAllByStart(false);
+        List<ChannelCheck> channelCheck = channelCheckService.findAll(userId);
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+
+        for (Channel c : channels){
+            if (!join(channelCheck, c)){
+                return messageBuilder
+                        .line("➕ Подпишись на канал, для получение денежной награды, и просмотри несколько постов, выше по ленте\n" +
+                                "\n" +
+                                "\uD83D\uDCB0 Награда за подписку: "+ c.getPrice() +"₽")
+                        .row()
+                        .buttonWithUrl("➕ Подписаться", c.getUrl())
+                        .row()
+                        .button("\uD83D\uDCB0 Получить награду", "/getGift_" + c.getId())
+                        .build();
+            }
+        }
+        return messageBuilder
+                .line("Каналов для подписки не найдено")
+                .build();
+    }
+
+    public SendMessage getGift(Update update){
+        int userId = update.getCallbackQuery().getFrom().getId();
+        String channelId = update.getCallbackQuery().getData().split("_")[1];
+        Usr user = userService.findById(userId);
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        Channel channel = channelService.findById(channelId);
+
+        GetChatMember getChatMember = new GetChatMember();
+        getChatMember.setChatId(channelId);
+        getChatMember.setUserId(userId);
+        ChatMember chatMember = null;
+
+        List<ChannelCheck> channelChecks = channelCheckService.findAll(userId);
+        try {
+            chatMember = execute(getChatMember);
+        }catch (TelegramApiException e){
+
+        }
+        if ("left".equalsIgnoreCase(chatMember.getStatus())){
+            return messageBuilder
+                    .line("Вы не подписались!")
+                    .build();
+        }
+
+        for(ChannelCheck c : channelChecks){
+            if (c.getChannelId().equalsIgnoreCase(channel.getId())){
+                return messageBuilder
+                        .line("Вы ранее получили награду")
+                        .build();
+            }
+        }
+
+        ChannelCheck channelCheck = new ChannelCheck();
+        channelCheck.setChannelId(channelId);
+        channelCheck.setUserId(userId);
+        channelCheckService.update(channelCheck);
+
+        SendMessage sendMessage = new SendMessage();
+        sendMessage.setChatId(String.valueOf(userId));
+        sendMessage.setText("Вы получили " + channel.getPrice() + " руб.");
+        executeWithExceptionCheck(sendMessage);
+
+        user.setMoney(user.getMoney() + channel.getPrice());
+        userService.update(user);
+
+        return joined(update);
+    }
+
+    public boolean join(List<ChannelCheck> channelChecks, Channel channel){
+        for(ChannelCheck c : channelChecks){
+            if (c.getChannelId().equalsIgnoreCase(channel.getId())){
+                return true;
+            }
+        }
+        return false;
+    }
+
     public SendMessage bonus(Update update){
         int userId = update.getMessage().getFrom().getId();
         MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
@@ -795,7 +888,7 @@ public class Bot extends TelegramLongPollingBot {
                         "3. "+line3+" \uD83D\uDC48\uD83C\uDFFB\n" +
                         "\uD83C\uDF81 ЧТОБЫ ПОЛУЧИТЬ СЛЕДУЮЩИЙ БОНУС - ПОДПИШИСЬ НА ВСЕХ СПОНСОРОВ \uD83D\uDC46\uD83C\uDFFB\n" +
                         "\n" +
-                        "\uD83E\uDD1D По вопросам рекламы - @" + botName)
+                        "\uD83E\uDD1D По вопросам рекламы - @" + adminUrl)
                 .row()
                 .button("\uD83C\uDF81 Собрать бонус", "/daily_bonus")
                 .build();

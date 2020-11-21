@@ -25,7 +25,7 @@ CREATE TABLE payment (
 CREATE TABLE channel (
                          id varchar NOT NULL,
                          url varchar(100),
-                         price integer,
+                         price decimal,
                          start boolean,
                          CONSTRAINT pk_channel PRIMARY KEY (id)
 );
