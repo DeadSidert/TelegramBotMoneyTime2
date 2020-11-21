@@ -36,3 +36,9 @@ CREATE TABLE channel_check (
                                user_id integer,
                                CONSTRAINT pk_channel_check PRIMARY KEY (id)
 );
+
+CREATE TABLE bonus_channel (
+                         id serial NOT NULL,
+                         url varchar(100),
+                         CONSTRAINT pk_channel PRIMARY KEY (id)
+);

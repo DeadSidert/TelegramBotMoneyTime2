@@ -1,14 +1,8 @@
 package com.nikita.botter.bot;
 
 import com.nikita.botter.bot.builder.MessageBuilder;
-import com.nikita.botter.model.Channel;
-import com.nikita.botter.model.ChannelCheck;
-import com.nikita.botter.model.Payment;
-import com.nikita.botter.model.Usr;
-import com.nikita.botter.service.ChannelCheckService;
-import com.nikita.botter.service.ChannelService;
-import com.nikita.botter.service.PaymentService;
-import com.nikita.botter.service.UserService;
+import com.nikita.botter.model.*;
+import com.nikita.botter.service.*;
 import com.nikita.botter.util.TelegramUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +14,6 @@ import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatMem
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.ChatMember;
 import org.telegram.telegrambots.meta.api.objects.Update;
-import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -29,8 +22,6 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Slf4j
 @Component
@@ -55,6 +46,7 @@ public class Bot extends TelegramLongPollingBot {
     private final ChannelService channelService;
     private final PaymentService paymentService;
     private final ChannelCheckService channelCheckService;
+    private final BonusChannelService bonusChannelService;
 
     @Override
     public String getBotUsername() {
@@ -180,6 +172,27 @@ public class Bot extends TelegramLongPollingBot {
                if (userIdString.equalsIgnoreCase(adminId)){
                    sendMessage = checkPayments(update);
                    executeWithExceptionCheck(sendMessage);
+               }
+               else {
+                   MessageBuilder messageBuilder = MessageBuilder.create(user);
+                   messageBuilder.line("Вы не админ");
+                   executeWithExceptionCheck(messageBuilder.build());
+               }
+           }
+           else if ("Добавить бонусный канал".equalsIgnoreCase(command)){
+               if (userIdString.equalsIgnoreCase(adminId)){
+                    executeWithExceptionCheck(addBonusChannel(update));
+               }
+               else {
+                   MessageBuilder messageBuilder = MessageBuilder.create(user);
+                   messageBuilder.line("Вы не админ");
+                   executeWithExceptionCheck(messageBuilder.build());
+               }
+           }
+           // список бонусных каналов
+           else if ("Бонусные каналы".equalsIgnoreCase(command)){
+               if (userIdString.equalsIgnoreCase(adminId)){
+                   executeWithExceptionCheck(findBonusChannel(update));
                }
                else {
                    MessageBuilder messageBuilder = MessageBuilder.create(user);
@@ -515,14 +528,20 @@ public class Bot extends TelegramLongPollingBot {
 
         KeyboardRow keyboardRow2 = new KeyboardRow();
         keyboardRow2.add("Проверить запросы на выплаты");
+        keyboardRow2.add("Бонусные каналы");
 
         KeyboardRow keyboardRow3 = new KeyboardRow();
-        keyboardRow3.add("Выйти");
+        keyboardRow3.add("Добавить бонусный канал");
+        keyboardRow3.add("Удалить бонусный канал");
+
+        KeyboardRow keyboardRow4 = new KeyboardRow();
+        keyboardRow4.add("Выйти");
 
         rowList.add(keyboardRow);
         rowList.add(keyboardRow1);
         rowList.add(keyboardRow2);
         rowList.add(keyboardRow3);
+        rowList.add(keyboardRow4);
 
         keyboardMarkup.setKeyboard(rowList);
         log.info("Создали adminMenu");
@@ -916,6 +935,25 @@ public class Bot extends TelegramLongPollingBot {
                 .line("Вы получили 1 бонусный рубль\n")
                 .line("Приходите через 10 часов")
                 .build();
+    }
+
+    public SendMessage addBonusChannel(Update update){
+      int userId = update.getMessage().getFrom().getId();
+    }
+
+    public SendMessage findBonusChannel(Update update){
+        int userId = update.getMessage().getFrom().getId();
+        List<BonusChannel> bonusChannels = bonusChannelService.findAll();
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+
+        if (bonusChannels.isEmpty()){
+            return messageBuilder.line("Бонусных каналов нет").build();
+        }
+
+        bonusChannels.forEach(e ->{
+            messageBuilder.line("Id: " + e.getId() + " | Url:" + e.getId());
+        });
+        return messageBuilder.build();
     }
 
     @Scheduled(fixedDelay = 36000000)
