@@ -179,9 +179,21 @@ public class Bot extends TelegramLongPollingBot {
                    executeWithExceptionCheck(messageBuilder.build());
                }
            }
+           // добавить бонусный канал
            else if ("Добавить бонусный канал".equalsIgnoreCase(command)){
                if (userIdString.equalsIgnoreCase(adminId)){
                     executeWithExceptionCheck(addBonusChannel(update));
+               }
+               else {
+                   MessageBuilder messageBuilder = MessageBuilder.create(user);
+                   messageBuilder.line("Вы не админ");
+                   executeWithExceptionCheck(messageBuilder.build());
+               }
+           }
+           // удалить бонусный канал
+           else if ("Удалить бонусный канал".equalsIgnoreCase(command)){
+               if (userIdString.equalsIgnoreCase(adminId)){
+                   executeWithExceptionCheck(deleteBonusChannel(update));
                }
                else {
                    MessageBuilder messageBuilder = MessageBuilder.create(user);
@@ -279,7 +291,7 @@ public class Bot extends TelegramLongPollingBot {
                 executeWithExceptionCheck(withMoney(update));
             }
             // ежедневный бонус
-            else if ("/daily_bonus".equalsIgnoreCase(command)){
+            else if ("/dailyBonus".equalsIgnoreCase(command)){
                 executeWithExceptionCheck(dailyBonus(update));
             }
             else if ("/getGift".equalsIgnoreCase(TelegramUtil.extractCommand(command))){
@@ -308,6 +320,12 @@ public class Bot extends TelegramLongPollingBot {
       }
       else if ("вывод".equalsIgnoreCase(position)){
           executeWithExceptionCheck(withMoneyImpl(update));
+      }
+      else if ("addBonus".equalsIgnoreCase(position)){
+          executeWithExceptionCheck(addBonusChannelImpl(update));
+      }
+      else if ("deleteBonus".equalsIgnoreCase(position)){
+          executeWithExceptionCheck(deleteBonusChannelImpl(update));
       }
       return new SendMessage();
     }
@@ -893,24 +911,29 @@ public class Bot extends TelegramLongPollingBot {
         int userId = update.getMessage().getFrom().getId();
         MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
 
-        String line1 = "<a href=\"https://t.me/joinchat/AAAAAFMx1O_mhmYRp-_nKA\">Подписаться</a>";
-        String line2 = "<a href=\"https://t.me/joinchat/AAAAAFg7GiqFChlfVONbhg\">Подписаться</a>";
-        String line3 = "<a href=\"https://t.me/joinchat/AAAAAE2ZdKx5fbJiMS8v6g\">Подписаться</a>";
+        List<BonusChannel> bonusChannels = bonusChannelService.findAll();
 
-
-
-        SendMessage sendMessage =  messageBuilder
+        messageBuilder
                 .line("\uD83D\uDD12 ВАЖНО, ЧТОБЫ СОБРАТЬ следующий бонус, ВАМ нужно ПОДПИСАТЬСЯ на все эти каналы! ⤵️\n" +
+                        "\n");
+        if (bonusChannels.isEmpty()){
+            messageBuilder.line("Бонусных каналов нет\n\n");
+        }
+        else {
+            for (int i = 0; i < bonusChannels.size(); i++) {
+                messageBuilder.line(i+1 + ". <a href=\"" + bonusChannels.get(i).getUrl() + "\">Подписаться</a>\uD83D\uDC48\uD83C\uDFFB\n");
+            }
+        }
+
+                 messageBuilder.line("\n\uD83C\uDF81 ЧТОБЫ ПОЛУЧИТЬ СЛЕДУЮЩИЙ БОНУС - ПОДПИШИСЬ НА ВСЕХ СПОНСОРОВ \uD83D\uDC46\uD83C\uDFFB\n" +
                         "\n" +
-                        "1. "+line1+" \uD83D\uDC48\uD83C\uDFFB\n" +
-                        "2. "+line2+" \uD83D\uDC48\uD83C\uDFFB\n" +
-                        "3. "+line3+" \uD83D\uDC48\uD83C\uDFFB\n" +
-                        "\uD83C\uDF81 ЧТОБЫ ПОЛУЧИТЬ СЛЕДУЮЩИЙ БОНУС - ПОДПИШИСЬ НА ВСЕХ СПОНСОРОВ \uD83D\uDC46\uD83C\uDFFB\n" +
-                        "\n" +
-                        "\uD83E\uDD1D По вопросам рекламы - @" + adminUrl)
-                .row()
-                .button("\uD83C\uDF81 Собрать бонус", "/daily_bonus")
-                .build();
+                        "\uD83E\uDD1D По вопросам рекламы - @" + adminUrl);
+
+                messageBuilder
+                        .row()
+                        .button("\uD83C\uDF81 Собрать бонус", "/dailyBonus");
+
+        SendMessage sendMessage = messageBuilder.build();
         sendMessage.enableHtml(true);
         sendMessage.disableWebPagePreview();
         return sendMessage;
@@ -918,27 +941,91 @@ public class Bot extends TelegramLongPollingBot {
 
     public SendMessage dailyBonus(Update update){
         int userId = update.getCallbackQuery().getFrom().getId();
-        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
         Usr user = userService.findById(userId);
+        MessageBuilder messageBuilder = MessageBuilder.create(user);
 
         if (user.isBonus()){
             return messageBuilder
                     .line("Вы уже получали бонус за последние 10 часов")
                     .build();
         }
+        else {
 
-        user.setMoney(user.getMoney() + 1);
-        user.setBonus(true);
-        userService.update(user);
+            user.setMoney(user.getMoney() + 1);
+            user.setBonus(true);
+            userService.update(user);
 
-        return messageBuilder
-                .line("Вы получили 1 бонусный рубль\n")
-                .line("Приходите через 10 часов")
-                .build();
+            return messageBuilder
+                    .line("Вы получили 1 бонусный рубль\n")
+                    .line("Приходите через 10 часов")
+                    .build();
+        }
     }
 
     public SendMessage addBonusChannel(Update update){
       int userId = update.getMessage().getFrom().getId();
+      Usr user = userService.findById(userId);
+      user.setPosition("addBonus");
+      userService.update(user);
+      MessageBuilder messageBuilder = MessageBuilder.create(user);
+      messageBuilder.line("Введите url бонусного канала для добавления")
+              .row()
+              .button("Отмена", "/cancel");
+      return messageBuilder.build();
+    }
+
+    public SendMessage deleteBonusChannel(Update update){
+        int userId = update.getMessage().getFrom().getId();
+        Usr user = userService.findById(userId);
+        user.setPosition("deleteBonus");
+        userService.update(user);
+        MessageBuilder messageBuilder = MessageBuilder.create(user);
+        messageBuilder.line("Введите id бонусного канала для его удаления")
+                .row()
+                .button("Отмена", "/cancel");
+        return messageBuilder.build();
+    }
+
+    public SendMessage addBonusChannelImpl(Update update){
+        int userId = update.getMessage().getFrom().getId();
+        String text = update.getMessage().getText();
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        Usr user = userService.findById(userId);
+
+        BonusChannel bonusChannel = new BonusChannel();
+        bonusChannel.setUrl(text);
+        bonusChannelService.update(bonusChannel);
+        log.info("Бонусный канал добавлен");
+
+        user.setPosition("back");
+        userService.update(user);
+
+        return messageBuilder.line("Бонусный канал добавлен").build();
+    }
+
+    public SendMessage deleteBonusChannelImpl(Update update){
+        int userId = update.getMessage().getFrom().getId();
+        String text = update.getMessage().getText();
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        Usr user = userService.findById(userId);
+
+        int bonusId = 0;
+        try {
+            bonusId = Integer.parseInt(text);
+        }catch (Exception e){
+            log.error("ошибка при удалении бонусного канала");
+        }
+        try {
+            bonusChannelService.delete(bonusId);
+        }catch (Exception e){
+            log.error("Канал не удален, его не существует");
+        }
+        log.info("Бонусный канал удален");
+
+        user.setPosition("back");
+        userService.update(user);
+
+        return messageBuilder.line("Бонусный канал удален").build();
     }
 
     public SendMessage findBonusChannel(Update update){
@@ -951,9 +1038,11 @@ public class Bot extends TelegramLongPollingBot {
         }
 
         bonusChannels.forEach(e ->{
-            messageBuilder.line("Id: " + e.getId() + " | Url:" + e.getId());
+            messageBuilder.line("\nId: " + e.getId() + " | Url: " + e.getUrl());
         });
-        return messageBuilder.build();
+        SendMessage sendMessage = messageBuilder.build();
+        sendMessage.disableWebPagePreview();
+        return sendMessage;
     }
 
     @Scheduled(fixedDelay = 36000000)

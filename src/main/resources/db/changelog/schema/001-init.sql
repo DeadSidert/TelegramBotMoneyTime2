@@ -40,5 +40,5 @@ CREATE TABLE channel_check (
 CREATE TABLE bonus_channel (
                          id serial NOT NULL,
                          url varchar(100),
-                         CONSTRAINT pk_channel PRIMARY KEY (id)
+                         CONSTRAINT pk_bonus_channel PRIMARY KEY (id)
 );

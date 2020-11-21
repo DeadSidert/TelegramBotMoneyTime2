@@ -19,4 +19,8 @@ public class BonusChannel {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
     private String url;
+
+    public BonusChannel(String url) {
+        this.url = url;
+    }
 }
