@@ -11,7 +11,7 @@ import javax.persistence.Id;
 @Setter
 @Entity
 @RequiredArgsConstructor
-public class User {
+public class Usr {
 
     @Id
     int id;
@@ -20,19 +20,19 @@ public class User {
     boolean auth;
     int countRefs;
     // тот, кто привел юзера
-    String referUrl;
+    int referId;
     int money;
     String qiwi;
     private boolean bonus;
     private int moneyFromPartners;
 
-    public User(int id) {
+    public Usr(int id) {
         this.id = id;
         this.refUrl = "";
         this.position = "back";
         this.auth = false;
         this.countRefs = 0;
-        this.referUrl = "";
+        this.referId = 0;
         this.money = 0;
         this.qiwi = "";
         this.bonus = false;

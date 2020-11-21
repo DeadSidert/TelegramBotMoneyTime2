@@ -1,38 +1,36 @@
 package com.nikita.botter.service;
 
 import com.nikita.botter.model.Channel;
+import com.nikita.botter.repository.JpaChannelRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class ChannelService {
 
-    private final HashMap<String, Channel> channelsStart = new HashMap();
-    public List<Channel> findAll(boolean start){
-        List<Channel> channels = new ArrayList<>();
+   private final JpaChannelRepository channelRepository;
 
-        for (Channel c : channelsStart.values()){
-            if (c.isStart()){
-                channels.add(c);
-            }
-        }
-        return channels;
+    public List<Channel> findAllByStart(boolean start){
+        return channelRepository.findAllByStart(start);
+    }
+
+    public List<Channel> getChannels(){
+        return channelRepository.findAll();
     }
 
     public Channel update(Channel channel){
-        channelsStart.put(channel.getId(), channel);
-        return channel;
+        return channelRepository.save(channel);
     }
 
-    public boolean isExist(String id){
-        return channelsStart.containsKey(id);
+    public Channel findById(String id){
+        return channelRepository.findById(id).get();
     }
 
     public void delete(String id){
-        channelsStart.remove(id);
+        channelRepository.deleteById(id);
     }
 
 

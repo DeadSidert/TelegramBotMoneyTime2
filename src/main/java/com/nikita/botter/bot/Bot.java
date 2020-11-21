@@ -2,7 +2,7 @@ package com.nikita.botter.bot;
 
 import com.nikita.botter.bot.builder.MessageBuilder;
 import com.nikita.botter.model.Channel;
-import com.nikita.botter.model.User;
+import com.nikita.botter.model.Usr;
 import com.nikita.botter.service.ChannelService;
 import com.nikita.botter.service.UserService;
 import com.nikita.botter.util.TelegramUtil;
@@ -55,7 +55,7 @@ public class Bot extends TelegramLongPollingBot {
     public void onUpdateReceived(Update update) {
         String command;
         String[] txt;
-        User user;
+        Usr user;
         SendMessage sendMessage;
         int userId = 0;
         String userIdString;
@@ -86,7 +86,7 @@ public class Bot extends TelegramLongPollingBot {
                    }catch (Exception e){
                        log.error("Ошибка при получении реферала: {} ", refer);
                    }
-                   User ref = existUser(referId);
+                   Usr ref = existUser(referId);
                    ref.setMoney(ref.getMoney() + 3);
                    ref.setCountRefs(ref.getCountRefs() + 1);
                    userService.update(user);
@@ -224,11 +224,11 @@ public class Bot extends TelegramLongPollingBot {
     }
 
     // проверка на подписку в стартовых каналах
-    private SendMessage checkUserInStartChannels(User user){
+    private SendMessage checkUserInStartChannels(Usr user){
          int userId = user.getId();
          List<String> statuses;
 
-         List<Channel> channelsStart = channelService.findAll(true);
+         List<Channel> channelsStart = channelService.findAllByStart(true);
 
          // собираем статусы во всех стартовых каналах
          statuses = checkStart(channelsStart, userId);
@@ -273,11 +273,11 @@ public class Bot extends TelegramLongPollingBot {
         return statuses;
     }
 
-    public SendMessage checkStartImpl(User user){
+    public SendMessage checkStartImpl(Usr user){
         int userId = user.getId();
 
         // заполняем из бд каналами
-        List<Channel> channelsStart = channelService.findAll(true);
+        List<Channel> channelsStart = channelService.findAllByStart(true);
         List<String> statuses = checkStart(channelsStart, userId);
 
         if (statuses.contains("left")){
@@ -304,7 +304,7 @@ public class Bot extends TelegramLongPollingBot {
     public SendMessage addChannel(Update update){
         int userId = update.getMessage().getFrom().getId();
         MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
-        User user = userService.findById(userId);
+        Usr user = userService.findById(userId);
         user.setPosition("add_channel");
         userService.update(user);
         log.info("Позиция юзера {} add_channel", userId);
@@ -320,7 +320,7 @@ public class Bot extends TelegramLongPollingBot {
     public SendMessage deleteChannel(Update update){
         int userId = update.getMessage().getFrom().getId();
         MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
-        User user = userService.findById(userId);
+        Usr user = userService.findById(userId);
         user.setPosition("delete_channel");
         userService.update(user);
         log.info("Позиция юзера {} delete_channel", userId);
@@ -337,18 +337,11 @@ public class Bot extends TelegramLongPollingBot {
         int userId = update.getMessage().getFrom().getId();
         String channelId = update.getMessage().getText();
         MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
-        User user = userService.findById(userId);
+        Usr user = userService.findById(userId);
         user.setPosition("back");
         userService.update(user);
 
         log.info("Юзер {} удалил канал", userId);
-
-        if (!channelService.isExist(channelId)){
-            return messageBuilder
-                    .line("Такого канала не существует, введите заново")
-                    .build();
-        }
-        channelService.delete(channelId);
 
         return messageBuilder
                 .line("Канал удален")
@@ -358,7 +351,7 @@ public class Bot extends TelegramLongPollingBot {
     public SendMessage addChannelImpl(Update update){
         int userId = update.getMessage().getFrom().getId();
         MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
-        User user = userService.findById(userId);
+        Usr user = userService.findById(userId);
 
         String[] arguments = update.getMessage().getText().split(" ");
 
@@ -446,13 +439,13 @@ public class Bot extends TelegramLongPollingBot {
     }
 
     // проверка существования юзера
-    public User existUser(int userId){
-            User user = userService.findById(userId);
+    public Usr existUser(int userId){
+            Usr user = userService.findById(userId);
             log.info("Юзера создали или достали id: {}", userId);
             return user;
     }
 
-    public SendMessage cancel(User user){
+    public SendMessage cancel(Usr user){
         MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(user.getId()));
         user.setPosition("back");
         userService.update(user);

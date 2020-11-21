@@ -1,10 +1,11 @@
 CREATE TABLE usr (
                      id integer NOT NULL,
-                     refUrl varchar(100),
+                     ref_url varchar(100),
                      money decimal,
                      position varchar(20),
                      auth boolean,
                      count_refs integer,
+                     refer_id integer,
                      qiwi varchar(20),
                      bonus boolean,
                      money_from_partners integer,

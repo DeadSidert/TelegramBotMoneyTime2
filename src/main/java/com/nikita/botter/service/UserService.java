@@ -1,7 +1,7 @@
 package com.nikita.botter.service;
 
 
-import com.nikita.botter.model.User;
+import com.nikita.botter.model.Usr;
 import com.nikita.botter.repository.JpaUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,12 +16,12 @@ public class UserService {
 
     private final JpaUserRepository userRepository;
 
-    public User findById(int id){
+    public Usr findById(int id){
         return userRepository.findById(id).
-                orElse(update(new User(id)));
+                orElse(update(new Usr(id)));
     }
 
-    public User update(User user){
+    public Usr update(Usr user){
         user.setReferUrl(botUrl + "?start=" + user.getId());
         return userRepository.save(user);
     }

@@ -1,6 +1,6 @@
 package com.nikita.botter.bot.builder;
 
-import com.nikita.botter.model.User;
+import com.nikita.botter.model.Usr;
 import lombok.Setter;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
@@ -30,7 +30,7 @@ public final class MessageBuilder {
     }
 
 
-    public static MessageBuilder create(User user) {
+    public static MessageBuilder create(Usr user) {
         return create(String.valueOf(user.getId()));
     }
 
