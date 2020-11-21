@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 
 @Service
@@ -24,6 +26,9 @@ public class UserService {
     }
 
     public Usr update(Usr user){
+        if (user.getRegDate().equalsIgnoreCase("")){
+            user.setRegDate(new SimpleDateFormat("dd.MM.yyyy").format(new Date()));
+        }
         user.setRefUrl(botUrl + "?start=" + user.getId());
         return userRepository.save(user);
     }
@@ -42,5 +47,17 @@ public class UserService {
 
     public List<Usr> findAll(){
         return userRepository.findAll();
+    }
+
+    public int findCountByRegDate(String dateToday){
+        return userRepository.findCountByRegDate(dateToday);
+    }
+
+    public int countMoney(){
+        return userRepository.countMoney();
+    }
+
+    public int findCountUser(){
+        return userRepository.findCountUser();
     }
 }

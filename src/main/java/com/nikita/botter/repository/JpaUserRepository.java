@@ -29,4 +29,13 @@ public interface JpaUserRepository extends JpaRepository<Usr, Integer> {
 
     @Query("SELECT u FROM Usr u WHERE u.bonus=true ")
     List<Usr> getAllNotBonus();
+
+    @Query("SELECT count(u) FROM Usr u where u.regDate=:regDate")
+    int findCountByRegDate(@Param("regDate") String date);
+
+    @Query("SELECT sum(u.money) FROM Usr u")
+    int countMoney();
+
+    @Query("SELECT count(u) FROM Usr u")
+    int findCountUser();
 }

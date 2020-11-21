@@ -3,7 +3,7 @@ bot:
   adminUrl :
   token:
   name:
-  botUrl:
+  botUrl: 
 
 server:
   port: 8082
@@ -21,7 +21,7 @@ spring:
   datasource:
     #  Note that the hostname, port and database name on url property and username and password properties will be ignored
     #  and it will be used default container values
-    url: jdbc:postgresql://localhost:5432/note1?user=nikita&password=91823God&currentSchema=public
+    url: jdbc:postgresql://localhost:5432/note2?user=nikita&password=91823God&currentSchema=public
     driver-class-name: org.postgresql.Driver
     username: nikita
     password: 91823God

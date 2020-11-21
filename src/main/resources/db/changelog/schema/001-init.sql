@@ -9,6 +9,7 @@ CREATE TABLE usr (
                      qiwi varchar(20),
                      bonus boolean,
                      money_from_partners integer,
+                     reg_date varchar,
                      CONSTRAINT pk_user PRIMARY KEY (id)
 );
 

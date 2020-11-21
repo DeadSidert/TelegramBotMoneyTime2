@@ -25,6 +25,7 @@ public class Usr {
     String qiwi;
     private boolean bonus;
     private int moneyFromPartners;
+    String regDate;
 
     public Usr(int id) {
         this.id = id;
@@ -37,5 +38,6 @@ public class Usr {
         this.qiwi = "Qiwi не установлен";
         this.bonus = false;
         this.moneyFromPartners = 0;
+        this.regDate = "";
     }
 }

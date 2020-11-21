@@ -135,8 +135,13 @@ public class Bot extends TelegramLongPollingBot {
            else if ("\uD83D\uDD06 Бонус".equalsIgnoreCase(command)){
                executeWithExceptionCheck(bonus(update));
            }
+           // подписки в меню
            else if ("➕ Подписки".equalsIgnoreCase(command)){
                executeWithExceptionCheck(joined(update));
+           }
+           // настройки в меню
+           else if ("⚙️ Статистика".equalsIgnoreCase(command)){
+               executeWithExceptionCheck(settings(update));
            }
            // войти в админ меню
            else if ("админМеню".equalsIgnoreCase(command)){
@@ -170,8 +175,7 @@ public class Bot extends TelegramLongPollingBot {
            // проверка запросов на выплаты
            else if ("Проверить запросы на выплаты".equalsIgnoreCase(command)){
                if (userIdString.equalsIgnoreCase(adminId)){
-                   sendMessage = checkPayments(update);
-                   executeWithExceptionCheck(sendMessage);
+                   checkPayments(update).forEach(this::executeWithExceptionCheck);
                }
                else {
                    MessageBuilder messageBuilder = MessageBuilder.create(user);
@@ -461,7 +465,11 @@ public class Bot extends TelegramLongPollingBot {
         Usr user = userService.findById(userId);
         user.setPosition("back");
         userService.update(user);
-
+        try {
+            channelService.delete(channelId);
+        }catch (Exception e){
+            log.error("Неверный id канала при удалении");
+        }
         log.info("Юзер {} удалил канал", userId);
 
         return messageBuilder
@@ -519,6 +527,7 @@ public class Bot extends TelegramLongPollingBot {
         keyboardRow1.add("\uD83D\uDC54 Партнерам");
 
         KeyboardRow keyboardRow2 = new KeyboardRow();
+        keyboardRow2.add("⚙️ Статистика");
         keyboardRow2.add("\uD83D\uDCC6 Информация");
 
         rowList.add(keyboardRow);
@@ -634,6 +643,9 @@ public class Bot extends TelegramLongPollingBot {
                         "\uD83D\uDCA1 Ваша ссылка: "+user.getRefUrl()+"\n" +
                         "\n" +
                         "\uD83D\uDC8E Всего заработано: "+user.getMoneyFromPartners()+"₽");
+        messageBuilder
+                .row()
+                .buttonWithUrl("Чаты для приглашения", "https://t.me/invitechat24");
         SendMessage sendMessage = messageBuilder.build();
         sendMessage.disableWebPagePreview();
         return sendMessage;
@@ -742,23 +754,26 @@ public class Bot extends TelegramLongPollingBot {
         return messageBuilder.line("Запрос на вывод создан, обработка 1-3 дня").build();
     }
 
-    public SendMessage checkPayments(Update update){
+    public List<SendMessage> checkPayments(Update update){
         int userId = update.getMessage().getFrom().getId();
         MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
         List<Payment> payments = paymentService.findAllByNotSuccessful();
+        List<SendMessage> sendMessages = new ArrayList<>();
         if (payments.isEmpty()){
-            return messageBuilder.line("Запросов нет").build();
+            sendMessages.add(messageBuilder.line("Запросов нет").build());
+            return sendMessages;
         }
         for (Payment p : payments){
             Usr user = userService.findById(p.getUserId());
-            messageBuilder.line("Id: " + p.getId() + " | userId: " + p.getUserId()
+            SendMessage sendMessage = messageBuilder.line("Id: " + p.getId() + " | userId: " + p.getUserId()
                     + " | сумма: " + p.getSum() + " \nQiwi: " + user.getQiwi() + " | Дата: " + p.getDate() + " | Время: " + p.getTimePayment())
                     .row()
                     .button("Выплачено", "/success_" + p.getId())
                     .row()
-                    .button("Неверный Qiwi", "/notSuc_" + p.getId());
+                    .button("Неверный Qiwi", "/notSuc_" + p.getId()).build();
+            sendMessages.add(sendMessage);
         }
-        return messageBuilder.build();
+        return sendMessages;
     }
 
     public List<SendMessage> success(Update update){
@@ -1043,6 +1058,20 @@ public class Bot extends TelegramLongPollingBot {
         SendMessage sendMessage = messageBuilder.build();
         sendMessage.disableWebPagePreview();
         return sendMessage;
+    }
+
+    public SendMessage settings(Update update){
+        int userId = update.getMessage().getFrom().getId();
+        String dateToday = new SimpleDateFormat("dd.MM.yyyy").format(new Date());
+        log.info("Сегодня {}", dateToday);
+        MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
+        messageBuilder.line("\uD83D\uDCC8 Статистика: \n" +
+                "\n" +
+                "\uD83D\uDCB0 Всего денег заработано: "+userService.countMoney()+" рублей\n" +
+                "\n" +
+                "\uD83D\uDC65 Всего участников: "+userService.findCountUser()+" человек \n" +
+                "\uD83D\uDC64 Новых за 24 часа: "+userService.findCountByRegDate(dateToday)+" человек \n");
+        return messageBuilder.build();
     }
 
     @Scheduled(fixedDelay = 36000000)
