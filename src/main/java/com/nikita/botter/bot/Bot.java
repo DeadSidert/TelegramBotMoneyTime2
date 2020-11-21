@@ -551,7 +551,7 @@ public class Bot extends TelegramLongPollingBot {
         }
         channels.forEach(e ->{
             messageBuilder
-                    .line("\nid: " + e.getId() + " | url: " + e.getUrl() + " | price: " + e.getPrice());
+                    .line("\nid: " + e.getId() + " | url: " + e.getUrl() + " | price: " + e.getPrice() + " | start " + e.isStart());
         });
         SendMessage sendMessage = messageBuilder.build();
         sendMessage.disableWebPagePreview();
