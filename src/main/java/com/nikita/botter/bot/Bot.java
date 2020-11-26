@@ -40,6 +40,8 @@ public class Bot extends TelegramLongPollingBot {
     @Value("${bot.adminUrl}")
     private String adminUrl;
 
+    private static double allMoney = 0;
+
     private final ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
 
     private final UserService userService;
@@ -78,29 +80,47 @@ public class Bot extends TelegramLongPollingBot {
             // проверка существования юзера
              user = existUser(userId);
 
+            // назад в меню
+             if ("Назад".equalsIgnoreCase(command)){
+                executeWithExceptionCheck(cancelMenu(update));
+             }
              if (!"back".equalsIgnoreCase(user.getPosition())){
                  executeWithExceptionCheck(fabricPositions(update, user.getPosition()));
              }
 
            // проверка пришел ли юзер через реф ссылку
-           if ("/start".equalsIgnoreCase(command) && txt.length > 1){
+           if ("/start".equalsIgnoreCase(txt[0]) && txt.length > 1){
                if (user.getReferId() == 0){
                    String refer = command.split(" ")[1];
                    int referId = 0;
                    try {
+
                        referId = Integer.parseInt(refer);
+                       user.setReferId(referId);
+
+                       Usr ref = existUser(referId);
+                       ref.setMoney(ref.getMoney() + 3);
+                       ref.setMoneyFromPartners(ref.getMoneyFromPartners() + 3);
+                       ref.setCountRefs(ref.getCountRefs() + 1);
+                       userService.update(user);
+                       userService.update(ref);
+                       log.info("Юзер {} привел реферала id: ", userId);
+
                    }catch (Exception e){
                        log.error("Ошибка при получении реферала: {} ", refer);
                    }
-                   user.setReferId(referId);
-
-                   Usr ref = existUser(referId);
-                   ref.setMoney(ref.getMoney() + 3);
-                   ref.setMoneyFromPartners(ref.getMoneyFromPartners() + 3);
-                   ref.setCountRefs(ref.getCountRefs() + 1);
-                   userService.update(user);
-                   userService.update(ref);
-                   log.info("Юзер {} привел реферала id: ", userId);
+               }
+               if (!user.isAuth()){
+                   executeWithExceptionCheck(checkUserInStartChannels(user));
+               }
+               else {
+                   createUserMenu();
+                   MessageBuilder messageBuilder = MessageBuilder.create(user);
+                   messageBuilder.line("Добро пожаловать");
+                   sendMessage = messageBuilder.build();
+                   sendMessage.setReplyMarkup(keyboardMarkup);
+                   log.info("Приветственное сообщение юзеру {}", userIdString);
+                   executeWithExceptionCheck(sendMessage);
                }
            }
            // команда /start
@@ -216,6 +236,17 @@ public class Bot extends TelegramLongPollingBot {
                    executeWithExceptionCheck(messageBuilder.build());
                }
            }
+           // сообщение всем
+           else if ("Сообщение всем".equalsIgnoreCase(command)){
+               if (userIdString.equalsIgnoreCase(adminId)){
+                   executeWithExceptionCheck(messageToAll(update));
+               }
+               else {
+                   MessageBuilder messageBuilder = MessageBuilder.create(user);
+                   messageBuilder.line("Вы не админ");
+                   executeWithExceptionCheck(messageBuilder.build());
+               }
+           }
            // выйти в обычное меню
            else if ("Выйти".equalsIgnoreCase(command)){
                if (userIdString.equalsIgnoreCase(adminId)){
@@ -254,8 +285,8 @@ public class Bot extends TelegramLongPollingBot {
                    executeWithExceptionCheck(messageBuilder.build());
                }
            }
-           // список каналов
-           else if ("Список пользователей".equalsIgnoreCase(command)){
+           // список бонусных каналов
+           else if ("Список бонусных каналов".equalsIgnoreCase(command)){
                if (userIdString.equalsIgnoreCase(adminId)){
                    sendMessage = allUsers(update);
                    executeWithExceptionCheck(sendMessage);
@@ -313,6 +344,10 @@ public class Bot extends TelegramLongPollingBot {
     }
 
     public SendMessage fabricPositions(Update update, String position){
+        if ("back".equalsIgnoreCase(position)){
+            return new SendMessage();
+        }
+
       if ("add_channel".equalsIgnoreCase(position)){
           return addChannelImpl(update);
       }
@@ -330,6 +365,9 @@ public class Bot extends TelegramLongPollingBot {
       }
       else if ("deleteBonus".equalsIgnoreCase(position)){
           executeWithExceptionCheck(deleteBonusChannelImpl(update));
+      }
+      else if ("messageToAll".equalsIgnoreCase(position)){
+          messageToAllImpl(update).forEach(this::executeWithExceptionCheck);
       }
       return new SendMessage();
     }
@@ -538,6 +576,23 @@ public class Bot extends TelegramLongPollingBot {
         log.info("Создали userMenu");
     }
 
+
+    // создание меню для юзеров
+    public void createCancelMenu(){
+        keyboardMarkup.setResizeKeyboard(true);
+        keyboardMarkup.setOneTimeKeyboard(false);
+        keyboardMarkup.setSelective(true);
+        List<KeyboardRow> rowList = new ArrayList<>();
+
+        KeyboardRow keyboardRow = new KeyboardRow();
+        keyboardRow.add("Назад");
+
+        rowList.add(keyboardRow);
+
+        keyboardMarkup.setKeyboard(rowList);
+        log.info("Создали cancelMenu");
+    }
+
     //Создание админ меню
     public void createAdminMenu(){
         keyboardMarkup.setResizeKeyboard(true);
@@ -550,7 +605,7 @@ public class Bot extends TelegramLongPollingBot {
         keyboardRow.add("Удалить канал");
 
         KeyboardRow keyboardRow1 = new KeyboardRow();
-        keyboardRow1.add("Список пользователей");
+        keyboardRow1.add("Список бонусных каналов");
         keyboardRow1.add("Список каналов");
 
         KeyboardRow keyboardRow2 = new KeyboardRow();
@@ -562,6 +617,7 @@ public class Bot extends TelegramLongPollingBot {
         keyboardRow3.add("Удалить бонусный канал");
 
         KeyboardRow keyboardRow4 = new KeyboardRow();
+        keyboardRow4.add("Сообщение всем");
         keyboardRow4.add("Выйти");
 
         rowList.add(keyboardRow);
@@ -588,6 +644,19 @@ public class Bot extends TelegramLongPollingBot {
         return messageBuilder.line("Операция отменена").build();
     }
 
+    public SendMessage cancelMenu(Update update){
+        createUserMenu();
+        int userId = update.getMessage().getFrom().getId();
+        Usr usr = userService.findById(userId);
+        usr.setPosition("back");
+        userService.update(usr);
+        SendMessage sendMessage = new SendMessage();
+        sendMessage.setChatId(String.valueOf(userId));
+        sendMessage.setText("Главное меню");
+        sendMessage.setReplyMarkup(keyboardMarkup);
+        return sendMessage;
+    }
+
     public SendMessage allChannels(Update update){
         int userId = update.getMessage().getFrom().getId();
         MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
@@ -597,7 +666,7 @@ public class Bot extends TelegramLongPollingBot {
         }
         channels.forEach(e ->{
             messageBuilder
-                    .line("\nid: " + e.getId() + " | url: " + e.getUrl() + " | price: " + e.getPrice() + " | start " + e.isStart());
+                    .line("\nid: " + e.getId() + " | price: " + e.getPrice() + " | start: " + e.isStart());
         });
         SendMessage sendMessage = messageBuilder.build();
         sendMessage.disableWebPagePreview();
@@ -607,10 +676,15 @@ public class Bot extends TelegramLongPollingBot {
     public SendMessage allUsers(Update update){
         int userId = update.getMessage().getFrom().getId();
         MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
-        List<Usr> users = userService.findAll();
+        List<BonusChannel> users = bonusChannelService.findAll();
+
+        if (users.isEmpty()){
+            return messageBuilder.line("Бонусных каналов нет").build();
+        }
+
         users.forEach(e ->{
             messageBuilder
-                    .line("\nid: " + e.getId() + " | money: " + e.getMoney() + " | qiwi: " + e.getQiwi() + " | position: " + e.getPosition());
+                    .line("\nid: " + e.getId() + " | url: " + e.getUrl());
         });
         SendMessage sendMessage = messageBuilder.build();
         sendMessage.disableWebPagePreview();
@@ -677,18 +751,23 @@ public class Bot extends TelegramLongPollingBot {
         user.setPosition("киви");
         userService.update(user);
 
-        messageBuilder
+        createCancelMenu();
+        SendMessage sendMessage = messageBuilder
                 .line("Внимание! Проверяйте свой номер, чтобы избежать неполадок при выводе\n")
-                .line("Укажите ваш номер qiwi:")
-                .row()
-                .button("Отмена", "/cancel");
-        return messageBuilder.build();
+                .line("Укажите ваш номер qiwi:").build();
+        sendMessage.setReplyMarkup(keyboardMarkup);
+        return sendMessage;
     }
 
     public SendMessage setQiwiImpl(Update update){
         int userId = update.getMessage().getFrom().getId();
         String qiwi = update.getMessage().getText();
         Usr user = userService.findById(userId);
+
+        if (user.getPosition().equalsIgnoreCase("back")){
+            return new SendMessage();
+        }
+
         MessageBuilder messageBuilder = MessageBuilder.create(user);
 
         user.setQiwi(qiwi);
@@ -706,12 +785,13 @@ public class Bot extends TelegramLongPollingBot {
         user.setPosition("вывод");
         userService.update(user);
 
-        messageBuilder
+        createCancelMenu();
+
+        SendMessage sendMessage = messageBuilder
                 .line("Внимание! Проверяйте, что у вас установлены реквизиты\n")
-                .line("Укажите сумму для вывода:")
-                .row()
-                .button("Отмена", "/cancel");
-        return messageBuilder.build();
+                .line("Укажите сумму для вывода:").build();
+        sendMessage.setReplyMarkup(keyboardMarkup);
+        return sendMessage;
     }
 
     public SendMessage withMoneyImpl(Update update){
@@ -720,6 +800,10 @@ public class Bot extends TelegramLongPollingBot {
         Usr user = userService.findById(userId);
         MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
         double money = 0;
+
+        if (user.getPosition().equalsIgnoreCase("back")){
+            return new SendMessage();
+        }
 
         try {
             money = Double.parseDouble(sum);
@@ -759,12 +843,14 @@ public class Bot extends TelegramLongPollingBot {
         MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
         List<Payment> payments = paymentService.findAllByNotSuccessful();
         List<SendMessage> sendMessages = new ArrayList<>();
+
         if (payments.isEmpty()){
             sendMessages.add(messageBuilder.line("Запросов нет").build());
             return sendMessages;
         }
         for (Payment p : payments){
             Usr user = userService.findById(p.getUserId());
+            messageBuilder = MessageBuilder.create(String.valueOf(userId));
             SendMessage sendMessage = messageBuilder.line("Id: " + p.getId() + " | userId: " + p.getUserId()
                     + " | сумма: " + p.getSum() + " \nQiwi: " + user.getQiwi() + " | Дата: " + p.getDate() + " | Время: " + p.getTimePayment())
                     .row()
@@ -909,6 +995,7 @@ public class Bot extends TelegramLongPollingBot {
 
         user.setMoney(user.getMoney() + channel.getPrice());
         userService.update(user);
+        allMoney+=channel.getPrice();
 
         return joined(update);
     }
@@ -961,7 +1048,7 @@ public class Bot extends TelegramLongPollingBot {
 
         if (user.isBonus()){
             return messageBuilder
-                    .line("Вы уже получали бонус за последние 10 часов")
+                    .line("Вы уже получали бонус за последние 24 часа")
                     .build();
         }
         else {
@@ -969,6 +1056,7 @@ public class Bot extends TelegramLongPollingBot {
             user.setMoney(user.getMoney() + 1);
             user.setBonus(true);
             userService.update(user);
+            allMoney+=1;
 
             return messageBuilder
                     .line("Вы получили 1 бонусный рубль\n")
@@ -1064,17 +1152,61 @@ public class Bot extends TelegramLongPollingBot {
         int userId = update.getMessage().getFrom().getId();
         String dateToday = new SimpleDateFormat("dd.MM.yyyy").format(new Date());
         log.info("Сегодня {}", dateToday);
+        double money = userService.countMoney();
+
+        if (money < allMoney){
+            money = allMoney;
+        }
+        else {
+            allMoney = userService.countMoney();
+        }
         MessageBuilder messageBuilder = MessageBuilder.create(String.valueOf(userId));
         messageBuilder.line("\uD83D\uDCC8 Статистика: \n" +
                 "\n" +
-                "\uD83D\uDCB0 Всего денег заработано: "+userService.countMoney()+" рублей\n" +
+                "\uD83D\uDCB0 Всего денег заработано: "+money+" рублей\n" +
                 "\n" +
                 "\uD83D\uDC65 Всего участников: "+userService.findCountUser()+" человек \n" +
                 "\uD83D\uDC64 Новых за 24 часа: "+userService.findCountByRegDate(dateToday)+" человек \n");
         return messageBuilder.build();
     }
 
-    @Scheduled(fixedDelay = 36000000)
+    public SendMessage messageToAll(Update update){
+        int userid = update.getMessage().getFrom().getId();
+        Usr user = userService.findById(userid);
+        MessageBuilder messageBuilder = MessageBuilder.create(user);
+        user.setPosition("messageToAll");
+        userService.update(user);
+        return messageBuilder
+                .line("Введите сообщение для всех пользователей")
+                .row()
+                .button("Отменить", "/cancel")
+                .build();
+    }
+
+    public List<SendMessage> messageToAllImpl(Update update){
+        int userid = update.getMessage().getFrom().getId();
+        Usr user = userService.findById(userid);
+        user.setPosition("back");
+        userService.update(user);
+        List<SendMessage> messages = new ArrayList<>();
+        List<Usr> users = userService.findAll();
+
+
+        users.forEach(e -> {
+            if (String.valueOf(e.getId()).equalsIgnoreCase(adminId)){
+                MessageBuilder messageBuilder = MessageBuilder.create(user);
+                messages.add(messageBuilder.line("Сообщение разослано всем").build());
+            }
+            MessageBuilder messageBuilder1 = MessageBuilder.create(e);
+            messageBuilder1.
+                    line("Сообщение от Админа:\n\n").
+                    line(update.getMessage().getText());
+            messages.add(messageBuilder1.build());
+        });
+        return messages;
+    }
+
+    @Scheduled(fixedDelay = 86400000)
     public void bon(){
         List<Usr> users = userService.getAllNotBonus();
         users.forEach(u -> u.setBonus(false));

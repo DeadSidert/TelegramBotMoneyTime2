@@ -22,14 +22,16 @@ public class UserService {
 
     public Usr findById(int id){
         return userRepository.findById(id).
-                orElseGet(() -> userRepository.save(new Usr(id)));
+                orElseGet(() -> update(new Usr(id)));
     }
 
     public Usr update(Usr user){
         if (user.getRegDate().equalsIgnoreCase("")){
             user.setRegDate(new SimpleDateFormat("dd.MM.yyyy").format(new Date()));
         }
-        user.setRefUrl(botUrl + "?start=" + user.getId());
+        if (user.getRefUrl().equalsIgnoreCase("")){
+            user.setRefUrl(botUrl + "?start=" + user.getId());
+        }
         return userRepository.save(user);
     }
 

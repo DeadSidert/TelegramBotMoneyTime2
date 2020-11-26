@@ -1,9 +1,9 @@
 bot:
   adminId:
-  adminUrl :
+  adminUrl : fry55
   token:
-  name:
-  botUrl: 
+  name: Monopoly
+  botUrl: https://t.me/Monetary24bot
 
 server:
   port: 8082
